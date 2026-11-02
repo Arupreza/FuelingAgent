@@ -1,0 +1,31 @@
+# AI-powered PR security review via anthropics/claude-code-security-review.
+# Source: https://github.com/anthropics/claude-code-security-review
+#
+# Setup (per repo):
+#   1. Copy this file to .github/workflows/security-review.yml in the target repo.
+#   2. Add a CLAUDE_API_KEY repo secret (Settings -> Secrets and variables -> Actions)
+#      -- the key needs both Claude API and Claude Code usage enabled.
+#   3. Not hardened against prompt injection -- only use on trusted PRs. Consider
+#      requiring maintainer approval for workflow runs from forks.
+name: Security Review
+
+permissions:
+  pull-requests: write  # Needed for leaving PR comments
+  contents: read
+
+on:
+  pull_request:
+
+jobs:
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - uses: anthropics/claude-code-security-review@main
+        with:
+          comment-pr: true
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}

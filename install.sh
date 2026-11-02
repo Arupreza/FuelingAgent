@@ -80,5 +80,17 @@ echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest login'
 echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest tools config set think.shrink false'
 echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest enable claude'
 echo ""
+echo "=============================================="
+echo "Optional: PR security review (GitHub Action)"
+echo "=============================================="
+echo "/security-review already works locally -- it ships with Claude Code,"
+echo "nothing to install. For automated review on every PR, per repo:"
+echo ""
+echo "  mkdir -p .github/workflows"
+echo "  cp \"$HERE/templates/github-actions/security-review.yml\" .github/workflows/"
+echo ""
+echo "Then add a CLAUDE_API_KEY repo secret on GitHub. See README.md"
+echo "'Security review' for the prompt-injection caveat before enabling."
+echo ""
 echo "Done. Restart Claude Code (or start a new session) for the plugins/skills"
 echo "and settings.json changes to take effect."

@@ -1,6 +1,6 @@
 # FuelingAgent
 
-### One Script, Seven Tools, Every Machine
+### One Script, Eight Tools, Every Machine
 
 ![Bash](https://img.shields.io/badge/Bash-5.0%2B-4EAA25?logo=gnubash&logoColor=white) ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white) ![Claude Code](https://img.shields.io/badge/Claude%20Code-required-d97757?logo=anthropic&logoColor=white) ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white) ![graphify](https://img.shields.io/badge/graphify-patched-blue) ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
 
@@ -17,6 +17,7 @@
 | 5 | archify | skill | `tt-a1i/archify` | Turns a system, pipeline, or schema into an interactive HTML diagram or one-page explainer |
 | 6 | asd-ste100 | skill | `danyuchn/asd-ste100-skill` | Writes docs in Simplified Technical English: short sentences, one term per thing, active voice |
 | 7 | caveman | plugin + CLI | `JuliusBrussee/caveman` | Compresses agent output/input to cut token cost — **see the caveat below before enabling** |
+| 8 | claude-code-security-review | built-in command + GitHub Action template | `anthropics/claude-code-security-review` | `/security-review` ships with Claude Code already — nothing to install for local use. This repo's CI Action (template bundled here) runs the same AI security review automatically on every PR — **see "Security review" below for per-repo setup** |
 
 ## Install
 
@@ -171,6 +172,30 @@ Then remove any leftover `ANTHROPIC_BASE_URL` line from
 config change like this does not apply retroactively to an already-running
 session.
 
+## Security review
+
+`/security-review` ships with Claude Code by default — just run it in any
+repo, no install needed. That's what `claude-code-security-review` (the
+official Anthropic repo) backs; its slash command is already built in.
+
+What the repo adds beyond the built-in command is a **GitHub Action** for
+automated review on every PR. To wire it into a repo:
+
+```bash
+mkdir -p .github/workflows
+cp <this-repo>/templates/github-actions/security-review.yml .github/workflows/
+git add .github/workflows/security-review.yml
+git commit -m "ci: add AI security review on PRs"
+```
+
+Then add a `CLAUDE_API_KEY` repo secret on GitHub (Settings -> Secrets and
+variables -> Actions) — the key needs both Claude API and Claude Code usage
+enabled.
+
+**Not hardened against prompt injection** — only run it on trusted PRs.
+For a public repo, require maintainer approval for workflow runs from
+forks (GitHub's own setting, not this template's).
+
 ## Repo layout
 
 ```
@@ -179,8 +204,10 @@ FuelingAgent/
 ├── install-graphify-patch.sh       # graphify CLI install + patch (called by install.sh)
 ├── scripts/
 │   └── install-node22.sh           # Node 22 install, checksum-verified against nodejs.org
-└── patches/graphify/
-    ├── graphify_cli-0.1.0-py3-none-any.whl   # pinned wheel, so the diffs apply to a known base
-    ├── extract.py.diff             # Python declaration + relationship extraction
-    └── workspace.py.diff           # deterministic file-walk ordering
+├── patches/graphify/
+│   ├── graphify_cli-0.1.0-py3-none-any.whl   # pinned wheel, so the diffs apply to a known base
+│   ├── extract.py.diff             # Python declaration + relationship extraction
+│   └── workspace.py.diff           # deterministic file-walk ordering
+└── templates/github-actions/
+    └── security-review.yml         # per-repo opt-in CI, see "Security review" above
 ```
