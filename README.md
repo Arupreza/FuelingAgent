@@ -15,7 +15,7 @@
 | 3 | andrej-karpathy-skills | plugin | `multica-ai/andrej-karpathy-skills` | Four habits: state assumptions, simplicity first, surgical edits, verifiable success criteria |
 | 4 | graphify | CLI + skill | `ChihebBENCHEIKH1/graphify` (skill) + patched CLI (this repo) | Answers "who calls this / what breaks" from a dependency graph instead of grep — **patched here** to actually extract Python (classes, Pydantic DTOs, functions, inheritance, imports), not just Kotlin/TypeScript |
 | 5 | archify | skill | `tt-a1i/archify` | Turns a system, pipeline, or schema into an interactive HTML diagram or one-page explainer |
-| 6 | asd-ste100 | skill | none — written locally, bundled here | Writes docs in Simplified Technical English: short sentences, one term per thing, active voice |
+| 6 | asd-ste100 | skill | `danyuchn/asd-ste100-skill` | Writes docs in Simplified Technical English: short sentences, one term per thing, active voice |
 | 7 | caveman | plugin + CLI | `JuliusBrussee/caveman` | Compresses agent output/input to cut token cost — **see the caveat below before enabling** |
 
 ## Install
@@ -38,13 +38,11 @@ each piece.
 
 1. **Plugins** (superpowers, ponytail, andrej-karpathy-skills, caveman) via
    `claude plugin marketplace add <repo>` + `claude plugin install <name>@<marketplace>`.
-2. **Skills from public repos** (archify, graphify's `SKILL.md`) via
-   `npx skills add <repo> -g`. Needs Node ≥22 — falls back to the Node 22 this
-   script installs in step 4 if your system Node is older (Node 18, the
+2. **Skills from public repos** (archify, asd-ste100, graphify's `SKILL.md`)
+   via `npx skills add <repo> -g`. Needs Node ≥22 — falls back to the Node 22
+   this script installs in step 3 if your system Node is older (Node 18, the
    current Ubuntu default, is too old for this specific `skills` CLI release).
-3. **The one locally-authored skill** (asd-ste100 — no public repo exists for
-   it) is copied from `bundled-skills/` straight into `~/.claude/skills/`.
-4. **graphify CLI**, patched: installs `graphify-cli==0.1.0` from the pinned
+3. **graphify CLI**, patched: installs `graphify-cli==0.1.0` from the pinned
    wheel bundled in `patches/graphify/` (not fetched fresh from PyPI, so a
    future PyPI release can't silently change what gets patched), then applies
    two diffs on top of it. Also installs Node 22 locally
@@ -174,10 +172,8 @@ FuelingAgent/
 ├── install-graphify-patch.sh       # graphify CLI install + patch (called by install.sh)
 ├── scripts/
 │   └── install-node22.sh           # Node 22 install, checksum-verified against nodejs.org
-├── patches/graphify/
-│   ├── graphify_cli-0.1.0-py3-none-any.whl   # pinned wheel, so the diffs apply to a known base
-│   ├── extract.py.diff             # Python declaration + relationship extraction
-│   └── workspace.py.diff           # deterministic file-walk ordering
-└── bundled-skills/asd-ste100/
-    └── SKILL.md                    # the one skill with no public repo to pull from
+└── patches/graphify/
+    ├── graphify_cli-0.1.0-py3-none-any.whl   # pinned wheel, so the diffs apply to a known base
+    ├── extract.py.diff             # Python declaration + relationship extraction
+    └── workspace.py.diff           # deterministic file-walk ordering
 ```

@@ -9,7 +9,7 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=============================================="
-echo "1/4  Claude Code plugins (superpowers, ponytail,"
+echo "1/3  Claude Code plugins (superpowers, ponytail,"
 echo "     karpathy-skills, caveman)"
 echo "=============================================="
 if ! command -v claude >/dev/null 2>&1; then
@@ -31,35 +31,28 @@ add_plugin "JuliusBrussee/caveman"                "caveman"                "cave
 
 echo ""
 echo "=============================================="
-echo "2/4  Claude Code skills (archify; graphify's"
-echo "     SKILL.md front end, separate from the CLI)"
+echo "2/3  Claude Code skills (archify, asd-ste100;"
+echo "     graphify's SKILL.md front end, separate"
+echo "     from the CLI)"
 echo "=============================================="
-# Needs Node >=22; the repo's own node22/ setup (step 4) provides this if the
+# Needs Node >=22; the repo's own node22/ setup (step 3) provides this if the
 # system Node is older. Try system node first, fall back to the bundled one.
 NPX_BIN="npx"
 if ! node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2>/dev/null; then
     if [ -x "$HOME/.local/node22/bin/npx" ]; then
         NPX_BIN="$HOME/.local/node22/bin/npx"
     else
-        echo "    system Node is < 22 and no ~/.local/node22 found yet -- run step 4"
+        echo "    system Node is < 22 and no ~/.local/node22 found yet -- run step 3"
         echo "    (node22 install) first, or 'skills add' below may fail."
     fi
 fi
 "$NPX_BIN" skills add tt-a1i/archify -g || true
 "$NPX_BIN" skills add ChihebBENCHEIKH1/graphify -g || true
+"$NPX_BIN" skills add danyuchn/asd-ste100-skill -g || true
 
 echo ""
 echo "=============================================="
-echo "3/4  Bundled skill (asd-ste100 -- no public repo,"
-echo "     authored locally, shipped in this toolkit)"
-echo "=============================================="
-mkdir -p "$HOME/.claude/skills/asd-ste100"
-cp "$HERE/bundled-skills/asd-ste100/SKILL.md" "$HOME/.claude/skills/asd-ste100/SKILL.md"
-echo "--> installed to ~/.claude/skills/asd-ste100/SKILL.md"
-
-echo ""
-echo "=============================================="
-echo "4/4  graphify CLI (patched for Python extraction)"
+echo "3/3  graphify CLI (patched for Python extraction)"
 echo "     + Node 22 (needed by caveman CLI and step 2)"
 echo "=============================================="
 if ! node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2>/dev/null; then
