@@ -121,38 +121,32 @@ stanza) to be picked up as a repo — `touch pyproject.toml` with a minimal
 
 ## Caveman caveat
 
-Caveman's full CLI is a **proxy**: when its routing is active, your recent
-agent messages are sent to Caveman's cloud to pick a model, and on the free
-tier that content may be used to improve Caveman's own models — you accept
-this at sign-up. If you work on anything proprietary, know this before
-enabling it.
+**Default here: skill-only, no CLI, no login.** `install.sh` installs only
+the `caveman` plugin (voice/compression skills run locally as hooks, no
+account, no proxy). This is deliberate, not a missing step — the full CLI
+has two problems serious enough that skill-only is the recommended default:
+
+1. **Breaks Anthropic's own Remote Control.** `cave enable claude` rewrites
+   `ANTHROPIC_BASE_URL` in `~/.claude/settings.json` to point at a local
+   `caveman-proxy` daemon (`127.0.0.1:8787`) instead of `api.anthropic.com`.
+   Remote Control refuses to run against any non-default base URL, full
+   stop — so enabling Caveman's proxy silently disables Remote Control until
+   you remove that override and restart Claude Code.
+2. **Proxy content leaves the machine.** When routing is active, your recent
+   agent messages are sent to Caveman's cloud to pick a model, and on the
+   free tier that content may be used to improve Caveman's own models — you
+   accept this at sign-up. If you work on anything proprietary, know this
+   before enabling it.
 
 It's also genuinely interfered with reliable work in the past: its
 `think.shrink` tool-output compression feature started silently truncating
 `Read`/`Bash` tool output mid-task (visible as a `<<ccr:...>>` marker instead
 of real content), which is actively dangerous for precision work like code
 edits — you can end up editing based on a compressed, wrong view of a file
-without realizing it. If this happens:
+without realizing it.
 
-```bash
-# kill the running proxy daemon
-pkill -f caveman-proxy
-
-# disable the compression feature specifically (keeps the rest working)
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest tools config set think.shrink false
-
-# disable/re-enable the Claude Code integration if needed
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest disable claude
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest enable claude
-```
-
-Note: a `tools config set` change doesn't apply retroactively to an
-*already-running* Claude Code session — it takes a session restart to fully
-clear. If output looks corrupted mid-session even after disabling, fall back
-to reading files via `sed -n` / `cat` through a shell tool instead of the
-`Read` tool until you can restart.
-
-To install it, after running `./install.sh`:
+**If you still want the full CLI** (routing, cost dashboard), after running
+`./install.sh`:
 
 ```bash
 PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest setup --install
@@ -162,7 +156,20 @@ PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest enable claude
 ```
 
 `login` opens a browser for device authorization — that step needs you, it
-can't be scripted.
+can't be scripted. `think.shrink false` disables the corruption-prone
+feature from the start.
+
+**To get back to skill-only** (restore Remote Control, stop cloud routing):
+
+```bash
+pkill -f caveman-proxy
+PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest disable claude
+```
+
+Then remove any leftover `ANTHROPIC_BASE_URL` line from
+`~/.claude/settings.json`'s `env` block by hand and restart Claude Code — a
+config change like this does not apply retroactively to an already-running
+session.
 
 ## Repo layout
 
