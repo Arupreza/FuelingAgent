@@ -1,7 +1,10 @@
 # FuelingAgent
 
-The Claude Code toolkit this machine runs on, packaged so a new machine gets
-the same setup with one script instead of re-deriving it from scratch.
+### One Script, Seven Tools, Every Machine
+
+![Bash](https://img.shields.io/badge/Bash-5.0%2B-4EAA25?logo=gnubash&logoColor=white) ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white) ![Claude Code](https://img.shields.io/badge/Claude%20Code-required-d97757?logo=anthropic&logoColor=white) ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white) ![graphify](https://img.shields.io/badge/graphify-patched-blue) ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
+
+> **The Claude Code toolkit this machine runs on, packaged to reinstall itself:** process skills (superpowers, ponytail, karpathy-skills), a dependency graph CLI patched to actually understand Python, diagramming, docs style, and token-compression tooling — one script, idempotent, no manual re-derivation on a new machine.
 
 ## What's in here
 
