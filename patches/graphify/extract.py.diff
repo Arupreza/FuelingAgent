@@ -1,0 +1,154 @@
+--- a/graphify/extract.py	2026-11-02 15:21:38.266140553 +0900
++++ b/graphify/extract.py	2026-11-02 15:21:38.269949710 +0900
+@@ -76,6 +76,9 @@
+         self.stats = defaultdict(int)
+         self.ts_index: dict[str, str] = {}
+         self.ts_symbol_use: dict[str, list[tuple[str, int, str]]] = defaultdict(list)
++        self.py_class_index: dict[str, list[tuple[str, str]]] = defaultdict(list)
++        self.py_func_index: dict[str, list[tuple[str, str]]] = defaultdict(list)
++        self.py_imports: list[tuple[str, str, str, str, int]] = []
+ 
+     # -- utilities --------------------------------------------------------
+     def rel(self, p: Path) -> str:
+@@ -782,9 +785,79 @@
+     # =====================================================================
+     # phase 6 - python services
+     # =====================================================================
++    def _py_declare(self, body, qual_prefix: str, repo, rel: str, declared: list) -> None:
++        """Classes (incl. nested) and module-level functions only -- declaration
++        pass only, no relationship resolution (see `_py_resolve` for that).
++
++        Methods are listed as a `methods` attr on their class, not emitted as
++        separate nodes -- matches scan_typescript's class/interface handling
++        exactly. Functions nested inside other functions are not walked at
++        all: `body` is only ever a module body or a class body here.
++
++        `declared` collects every node id emitted for this file, in
++        declaration order -- consumed by scan_python's import pass as the
++        edge source for DEPENDS_ON, mirroring scan_typescript's identical
++        `declared` list exactly.
++        """
++        import ast as _ast
++        for node in body:
++            if isinstance(node, _ast.ClassDef):
++                qualname = f"{qual_prefix}.{node.name}" if qual_prefix else node.name
++                base_names = [_ast.unparse(b) for b in node.bases]
++                is_dto = any(b.split(".")[-1] == "BaseModel" for b in base_names)
++                method_names = [m.name for m in node.body
++                               if isinstance(m, (_ast.FunctionDef, _ast.AsyncFunctionDef))][:40]
++                nid_val = nid("py", f"{rel}#{qualname}")
++                n = self.g.node(nid_val, M.DTO if is_dto else M.CLASS, node.name,
++                                repo=repo.name, file=rel, line=node.lineno,
++                                attrs={"lang": "python", "bases": base_names,
++                                       "methods": method_names})
++                self.g.add_edge(nid(M.REPO, repo.name), n.id, M.CONTAINS)
++                self.py_class_index[node.name].append((repo.name, n.id))
++                declared.append(n.id)
++                self._py_declare(node.body, qualname, repo, rel, declared)
++            elif isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)) and not qual_prefix:
++                nid_val = nid("py", f"{rel}#{node.name}")
++                self.g.node(nid_val, M.FUNCTION, node.name, repo=repo.name,
++                           file=rel, line=node.lineno, attrs={"lang": "python"})
++                self.g.add_edge(nid(M.REPO, repo.name), nid_val, M.CONTAINS)
++                self.py_func_index[node.name].append((repo.name, nid_val))
++                declared.append(nid_val)
++
++    def _py_lookup(self, index: dict, name: str, repo_name: str, exclude_id: str = "") -> str:
++        """Same-repo-only, best-effort resolution.
++
++        A name is only resolved against a candidate declared in the SAME
++        repo as the reference -- a bare-name match across repos must never
++        invent a cross-repo edge (final review finding 1: 52 false edges
++        in the real workspace from exactly this, e.g. two repos each
++        defining their own `Strict`). `exclude_id` additionally rules out
++        a class resolving its own name as a base (finding 3).
++        """
++        for cand_repo, cand_id in index.get(name, ()):
++            if cand_repo == repo_name and cand_id != exclude_id:
++                return cand_id
++        return ""
++
+     def scan_python(self) -> None:
+-        """FastAPI route declarations, so vision's HTTP surface is on the graph."""
++        """FastAPI route declarations, so vision's HTTP surface is on the graph.
++
++        Also emits CLASS/DTO/FUNCTION declarations and EXTENDS/DEPENDS_ON
++        relationships (see `_py_declare`/`_py_resolve`) so "who calls this /
++        what breaks" is answerable for Python the same way it already is
++        for Kotlin and TypeScript.
++
++        Declaration and resolution are two separate passes over every
++        Python file in the workspace: resolving while still declaring (the
++        original design) missed real edges whenever a file importing a
++        symbol happened to be visited before the file declaring it --
++        about a third of resolvable imports in practice (final review
++        finding 2). A clean two-pass split removes the ordering dependency
++        entirely, matching how `scan_kotlin` already separates declaration
++        from `link_kotlin`'s resolution.
++        """
+         import ast as _ast
++        self.py_imports = []
+         for repo in self.repos.values():
+             if "python" not in repo.kinds:
+                 continue
+@@ -795,7 +868,14 @@
+                 except (SyntaxError, OSError):
+                     continue
+                 self.stats["py_files"] += 1
++                declared: list[str] = []
++                self._py_declare(tree.body, "", repo, rel, declared)
++                holder = declared[0] if declared else nid(M.REPO, repo.name)
+                 for node in _ast.walk(tree):
++                    if isinstance(node, _ast.ImportFrom):
++                        for alias in node.names:
++                            self.py_imports.append(
++                                (holder, repo.name, alias.name, rel, node.lineno))
+                     if not isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef)):
+                         continue
+                     for dec in node.decorator_list:
+@@ -820,6 +900,45 @@
+                         self.g.add_edge(nid(M.REPO, repo.name), rid, M.EXPOSES,
+                                         file=rel, line=node.lineno)
+                         self.stats["py_routes"] += 1
++        self._py_resolve()
++
++    def _py_resolve(self) -> None:
++        """Second pass: EXTENDS from every declared class's `bases` attr,
++        DEPENDS_ON from every import collected during the declare pass, and
++        DTO propagation through resolved inheritance.
++
++        Runs only after every repo's declarations are fully indexed, so
++        resolution no longer depends on file-processing order (final
++        review finding 2).
++        """
++        for n in self.g.by_kind(M.CLASS, M.DTO):
++            for base in n.attrs.get("bases", []):
++                short = base.split(".")[-1]
++                hit = self._py_lookup(self.py_class_index, short, n.repo, exclude_id=n.id)
++                if hit:
++                    self.g.add_edge(n.id, hit, M.EXTENDS, file=n.file, line=n.line)
++        for holder, repo_name, alias_name, rel, lineno in self.py_imports:
++            target_id = (self._py_lookup(self.py_class_index, alias_name, repo_name)
++                        or self._py_lookup(self.py_func_index, alias_name, repo_name))
++            if target_id:
++                self.g.add_edge(holder, target_id, M.DEPENDS_ON, file=rel, line=lineno,
++                                attrs={"name": alias_name})
++                self.stats["py_depends_on"] += 1
++        # DTO propagation: a class whose resolved base is itself a DTO is a
++        # DTO too (Pydantic's common shared-base-model pattern, final review
++        # finding 4). Bounded fixed-point, same shape as `_close_allows`.
++        changed = True
++        rounds = 0
++        while changed and rounds < 12:
++            changed = False
++            rounds += 1
++            for n in self.g.by_kind(M.CLASS):
++                for e in self.g.out_edges(n.id, M.EXTENDS):
++                    base_node = self.g.nodes.get(e.dst)
++                    if base_node and base_node.kind == M.DTO:
++                        n.kind = M.DTO
++                        changed = True
++                        break
+ 
+ 
+ _ATOM = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")

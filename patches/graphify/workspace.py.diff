@@ -1,0 +1,24 @@
+--- a/graphify/workspace.py	2026-11-02 15:21:38.267857931 +0900
++++ b/graphify/workspace.py	2026-11-02 15:21:38.271066192 +0900
+@@ -57,11 +57,19 @@
+ 
+ 
+ def walk_files(root: Path, exts: set[str], within: Path | None = None):
+-    """Yield source files under `root`, pruning build/vendor directories."""
++    """Yield source files under `root`, pruning build/vendor directories.
++
++    Filenames are sorted within each directory: os.walk's order is
++    filesystem-dependent, and extractors that resolve references
++    incrementally as they declare (scan_typescript's ts_index,
++    scan_python's py_class_index/py_func_index) are only as reliable as
++    that order is stable and predictable. Sorting costs nothing here and
++    makes cross-file resolution deterministic instead of luck-of-the-walk.
++    """
+     base = within or root
+     for dirpath, dirnames, filenames in os.walk(base):
+         _prune(dirnames)
+-        for fn in filenames:
++        for fn in sorted(filenames):
+             if os.path.splitext(fn)[1] in exts:
+                 yield Path(dirpath) / fn
+ 
