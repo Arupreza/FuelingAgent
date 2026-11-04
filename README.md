@@ -9,23 +9,16 @@
 ![Codex](https://img.shields.io/badge/OpenAI%20Codex-supported-412991?logo=openai&logoColor=white)
 ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
 
-A coding agent is only as good as what you have wired into it, and that wiring
-does not travel. Set up each machine by hand and you get a different agent on
-your laptop than on your workstation, and a fresh machine means an afternoon of
-rediscovery. This repository is that setup as code: one command installs the
-same toolkit anywhere, for Claude Code and Codex both, and re-running it
-updates or repairs an install rather than duplicating it.
+One command installs an all-in-one toolkit for coding work:
 
-Two decisions shape what is in here:
+- **development** — process skills for planning, TDD, debugging and review;
+- **security** — review of code as it is written, plus two commands for a
+  whole-repo audit;
+- **a dependency graph** — a cross-repo graph that answers who-calls-what and
+  what-a-change-breaks, and refreshes itself.
 
-- **Curated, not bundled.** Every skill description loads at the start of every
-  session, so a pack of 300 skills costs real tokens before you type anything,
-  and its process skills fight the ones you chose. Each entry below earns its
-  place.
-- **Hooks where it matters.** A skill is advice the agent may or may not act
-  on. Where something must actually happen — reviewing code as it is written,
-  reaching for the dependency graph instead of grep — this installs a hook,
-  which is code that runs.
+Works for Claude Code and OpenAI Codex. Re-run the installer any time to update
+or repair an install; it never duplicates one.
 
 ## Contents
 
