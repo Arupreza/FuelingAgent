@@ -204,6 +204,12 @@ resolve only within one repository, so unrelated repositories get no false
 edges. The patches apply to 0.1.0 only, which is why the wheel is bundled here
 rather than pulled from PyPI.
 
+`install-graphify-patch.sh` recreates `~/.venvs/graphify` on each run, so the
+patches always meet pristine files, and it refuses to delete a directory it did
+not create. It also verifies that the Python extractor is actually present
+afterwards rather than only that the files parse — a reversed patch leaves
+perfectly valid Python.
+
 ### Usage
 
 ```bash
