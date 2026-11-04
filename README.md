@@ -202,19 +202,37 @@ merges by command string, so a re-run never adds a second copy.
 
 ## Supply chain
 
-Worth knowing before you run the installer. It pulls from seven third-party
-GitHub repositories and an npm package, none pinned to a version:
-`claude plugin marketplace add <owner/repo>` and `npx -y skills add <owner/repo>`
-take whatever is on the default branch at that moment. That code then runs as
-plugins, skills and hooks with the agent's full permissions, in every session.
+Worth knowing before you run the installer. What is pinned:
 
-So a re-run is not only an update: it is a fresh pull of whatever those
-repositories contain now. Review a source you do not already trust, and treat
-`./install.sh` as an action with the same weight as installing a shell plugin.
+| Source | Pinned? |
+|--------|---------|
+| graphify wheel | yes, bundled in `patches/graphify/` |
+| Node tarball | yes, SHA-256 in `scripts/install-node22.sh` |
+| `skills` npm package | yes, `skills@1.7.6` |
+| GitHub Action template | yes, commit SHAs |
+| the 7 plugin and skill repos | **no** |
 
-Two things in here are pinned and do not have this property: the graphify wheel
-is bundled in `patches/graphify/`, and the Node tarball is checked against a
-hash written into `scripts/install-node22.sh`.
+`claude plugin marketplace add` takes a repository's default branch and has no
+flag to pin a ref, so every run installs whatever is on those branches now, and
+that code runs as plugins, skills and hooks with the agent's full permissions.
+A re-run is therefore not only an update — it is a fresh pull.
+
+Since it cannot be pinned, it is tracked. The installer records the commit each
+marketplace resolved to in `~/.claude/fuelingcodeagent-sources.lock` and reports
+anything that moved:
+
+```
+--> third-party sources installed (unpinned upstream: these can change)
+      karpathy-skills            2c606141936f  unchanged
+      ponytail                   16352ac229eb  CHANGED from 9f1e02ab4c7d
+```
+
+A change is not a problem by itself — upstreams release. Silent change is the
+problem, so read the diff before trusting it:
+
+```bash
+git -C ~/.claude/plugins/marketplaces/<name> log <old>..<new>
+```
 
 If a step fails, the installer now says so and exits non-zero. A failed
 security plugin is not installed whatever the CLAUDE.md section claims —

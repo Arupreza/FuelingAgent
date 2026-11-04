@@ -4,7 +4,10 @@
 # pinned in this file -- never pipes a remote script into bash.
 set -euo pipefail
 
-NODE_VERSION="22.14.0"
+# Bumped from 22.14.0: the skills CLI now requires node >=22.20.0, so the
+# pinned Node could not run the pinned skills package. Pinning one side and
+# not the other is how that went unnoticed.
+NODE_VERSION="22.23.4"
 
 # The OS was hardcoded to linux, so on macOS this fetched a Linux tarball:
 # the checksum passed, tar extracted, and the failure only surfaced as an
@@ -26,10 +29,10 @@ esac
 # is already pinned, so the hash can be too, and a change then has to be a
 # commit to this repository.
 case "${NODE_OS}-${NODE_ARCH}" in
-    linux-x64)    NODE_SHA256="69b09dba5c8dcb05c4e4273a4340db1005abeafe3927efda2bc5b249e80437ec" ;;
-    linux-arm64)  NODE_SHA256="08bfbf538bad0e8cbb0269f0173cca28d705874a67a22f60b57d99dc99e30050" ;;
-    darwin-x64)   NODE_SHA256="deb5b211c25f3f803cd49c1c3fc3964e6c3725546d7d9608d994270388dcbf02" ;;
-    darwin-arm64) NODE_SHA256="4e845cb71b4e897289312743b2e31c405a8a48720655404d82a4dce23fc43527" ;;
+    linux-x64)    NODE_SHA256="1805bcd35e6815559bd2eb97db438d3fdb0eb3a5e6a977b7c1badca76337e9ce" ;;
+    linux-arm64)  NODE_SHA256="6287aa46b6c375d816e63ae66d024fbbfd70404825aabdfdf898a970871d2f4b" ;;
+    darwin-x64)   NODE_SHA256="f42abca7aaac61efc57d49fb42ea84fc53bbeba9a749cb03a291ce6e4e7a69c1" ;;
+    darwin-arm64) NODE_SHA256="037650d0839f457747396f052073fb48333d31bf5abd3c98b74da20d89ebb1ad" ;;
     *) echo "No pinned checksum for ${NODE_OS}-${NODE_ARCH}"; exit 1 ;;
 esac
 

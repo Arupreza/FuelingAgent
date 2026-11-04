@@ -76,6 +76,11 @@ CLAUDE_ONLY_PLUGINS=(
     # review, which doubles the model cost and the findings in context.
     "Security-Phoenix-demo/security-skills-claude-code|phoenix-security-review|phoenix-security"
 )
+# Pinned: `npx -y skills` takes the newest package every run, so a release can
+# change what the installer does without anything here changing. 1.7.6 needs
+# node >=22.20.0, which is why scripts/install-node22.sh pins 22.23.4 -- pinning
+# one side and not the other is how that mismatch went unnoticed.
+SKILLS_PKG="skills@1.7.6"
 SKILLS=(
     "tt-a1i/archify"
     "ChihebBENCHEIKH1/graphify"
@@ -126,15 +131,53 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     done
 fi
 
+# `claude plugin marketplace add` takes a repository's default branch and offers
+# no flag to pin a ref (checked: --claudeai, --scope, --sparse, and nothing
+# else), so every run installs whatever is on those branches now. That cannot
+# be fixed from here, but it can be made visible: record the commit each
+# marketplace resolved to and report anything that moved since the last run.
+# Silent drift is the part that matters -- a changed hook arriving unannounced
+# runs with the agent's full permissions.
+if [ "$WANT_CLAUDE" -eq 1 ]; then
+    LOCK="$HOME/.claude/fuelingcodeagent-sources.lock"
+    NEWLOCK="$(mktemp)"
+    DRIFTED=0
+    echo ""
+    echo "--> third-party sources installed (unpinned upstream: these can change)"
+    for mp in "$HOME/.claude/plugins/marketplaces"/*/; do
+        [ -d "$mp/.git" ] || continue
+        name="$(basename "$mp")"
+        sha="$(git -C "$mp" rev-parse HEAD 2>/dev/null)" || continue
+        echo "$name $sha" >> "$NEWLOCK"
+        prev="$(awk -v n="$name" '$1==n{print $2}' "$LOCK" 2>/dev/null)"
+        if [ -z "$prev" ]; then
+            printf "      %-26s %s  (first record)\n" "$name" "${sha:0:12}"
+        elif [ "$prev" != "$sha" ]; then
+            printf "      %-26s %s  CHANGED from %s\n" "$name" "${sha:0:12}" "${prev:0:12}"
+            DRIFTED=1
+        else
+            printf "      %-26s %s  unchanged\n" "$name" "${sha:0:12}"
+        fi
+    done
+    sort -o "$NEWLOCK" "$NEWLOCK" && mv "$NEWLOCK" "$LOCK"
+    if [ "$DRIFTED" -eq 1 ]; then
+        echo ""
+        echo "    One or more sources changed upstream since the last run. That code runs"
+        echo "    as plugins, skills and hooks with the agent's full permissions. Review the"
+        echo "    diff before trusting it:  git -C ~/.claude/plugins/marketplaces/<name> log <old>..<new>"
+    fi
+    echo "    recorded in $LOCK"
+fi
+
 section "3/7  Skills (archify, graphify, asd-ste100)"
 for repo in "${SKILLS[@]}"; do
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $repo"
-        try "claude skill $repo" run_npx -y skills add "$repo" -g -a claude-code -y
+        try "claude skill $repo" run_npx -y "$SKILLS_PKG" add "$repo" -g -a claude-code -y
     fi
     if [ "$WANT_CODEX" -eq 1 ]; then
         echo "--> [Codex] $repo"
-        try "codex skill $repo" run_npx -y skills add "$repo" -g -a codex -y
+        try "codex skill $repo" run_npx -y "$SKILLS_PKG" add "$repo" -g -a codex -y
     fi
 done
 
@@ -151,7 +194,11 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     claude plugin marketplace remove caveman >/dev/null 2>&1 || true
     claude mcp remove caveman -s user >/dev/null 2>&1 || true
     rm -rf "$HOME/.claude/skills/caveman" "$HOME/.claude/skills/megacave" \
-           "$HOME/.claude/skills/ultracave" "$HOME/.claude/plugins/cache/caveman"
+           "$HOME/.claude/skills/ultracave" "$HOME/.claude/plugins/cache/caveman" \
+           "$HOME/.claude/plugins/marketplaces/caveman"
+    # The marketplace clone was left behind by earlier versions: unregistered
+    # but still on disk, so it showed up in the source list above as a
+    # third-party repository this toolkit tracks. It isn't one any more.
     SETTINGS="$HOME/.claude/settings.json"
     if [ -f "$SETTINGS" ] && grep -q "caveman" "$SETTINGS"; then
         echo "--> removing caveman entries from $SETTINGS (backup: $SETTINGS.bak-caveman)"
