@@ -29,6 +29,7 @@ or repair an install; it never duplicates one.
 - [Security plugins](#security-plugins)
   - [Asking for a check](#asking-for-a-check)
 - [graphify hooks](#graphify-hooks)
+- [Supply chain](#supply-chain)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
 - [Updating and removal](#updating-and-removal)
@@ -165,6 +166,12 @@ holds source files (`node_modules`, `venv`, `site-packages`, `dist`, `build`,
 `__pycache__` pruned), and `graphify root` recognises a workspace. A notes
 folder, a data directory or a docs-only repository costs nothing.
 
+They run in **every** repository you open, including one you have just cloned
+and not read. The hooks execute no code from the repository, but they do point
+the agent at its `ARCHITECTURE_GRAPH.md`, and a hostile repository could put a
+prompt injection in that file. The same is true of any file the agent reads, so
+this adds no new exposure — but in an untrusted checkout, read before you act.
+
 ### It refreshes itself
 
 graphify checks freshness on every query and rebuilds when source files move,
@@ -191,6 +198,26 @@ months-old graph. Delete any you find.
 `/hooks`, or `jq 'del(.hooks.SessionStart, .hooks.UserPromptSubmit)'` on
 `~/.claude/settings.json`. Step 7 backs up to `settings.json.bak-graphify` and
 merges by command string, so a re-run never adds a second copy.
+
+## Supply chain
+
+Worth knowing before you run the installer. It pulls from seven third-party
+GitHub repositories and an npm package, none pinned to a version:
+`claude plugin marketplace add <owner/repo>` and `npx -y skills add <owner/repo>`
+take whatever is on the default branch at that moment. That code then runs as
+plugins, skills and hooks with the agent's full permissions, in every session.
+
+So a re-run is not only an update: it is a fresh pull of whatever those
+repositories contain now. Review a source you do not already trust, and treat
+`./install.sh` as an action with the same weight as installing a shell plugin.
+
+Two things in here are pinned and do not have this property: the graphify wheel
+is bundled in `patches/graphify/`, and the Node tarball is checked against a
+hash written into `scripts/install-node22.sh`.
+
+If a step fails, the installer now says so and exits non-zero. A failed
+security plugin is not installed whatever the CLAUDE.md section claims —
+confirm with `claude plugin list`.
 
 ## graphify: Python support
 

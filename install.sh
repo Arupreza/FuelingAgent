@@ -48,6 +48,18 @@ section() {
     echo "=============================================="
 }
 
+# Every install below ends in `|| true`, so one upstream outage cannot abort
+# the whole run. Left at that, the script exited 0 and printed "Next steps"
+# while a security plugin had silently failed -- and step 6 then wrote a
+# CLAUDE.md section telling the agent those plugins were active. Record each
+# failure and report it at the end with a non-zero exit instead.
+FAILED=()
+note_failure() { FAILED+=("$1"); echo "    FAILED: $1" >&2; }
+try() {   # try <label> <command...>
+    local label="$1"; shift
+    "$@" || note_failure "$label"
+}
+
 PLUGINS=(
     "obra/superpowers-marketplace|superpowers|superpowers-marketplace"
     "DietrichGebert/ponytail|ponytail|ponytail"
@@ -95,13 +107,13 @@ for entry in "${PLUGINS[@]}"; do
     IFS='|' read -r repo name marketplace <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $name"
-        claude plugin marketplace add "$repo" || true
-        claude plugin install "$name@$marketplace" || true
+        try "claude marketplace $repo" claude plugin marketplace add "$repo"
+        try "claude plugin $name"      claude plugin install "$name@$marketplace"
     fi
     if [ "$WANT_CODEX" -eq 1 ]; then
         echo "--> [Codex] $name"
-        codex plugin marketplace add "$repo" || true
-        codex plugin add "$name@$marketplace" || true
+        try "codex marketplace $repo" codex plugin marketplace add "$repo"
+        try "codex plugin $name"      codex plugin add "$name@$marketplace"
     fi
 done
 
@@ -109,8 +121,8 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     for entry in "${CLAUDE_ONLY_PLUGINS[@]}"; do
         IFS='|' read -r repo name marketplace <<< "$entry"
         echo "--> [Claude Code] $name"
-        claude plugin marketplace add "$repo" || true
-        claude plugin install "$name@$marketplace" || true
+        try "claude marketplace $repo" claude plugin marketplace add "$repo"
+        try "claude plugin $name"      claude plugin install "$name@$marketplace"
     done
 fi
 
@@ -118,11 +130,11 @@ section "3/7  Skills (archify, graphify, asd-ste100)"
 for repo in "${SKILLS[@]}"; do
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $repo"
-        run_npx -y skills add "$repo" -g -a claude-code -y || true
+        try "claude skill $repo" run_npx -y skills add "$repo" -g -a claude-code -y
     fi
     if [ "$WANT_CODEX" -eq 1 ]; then
         echo "--> [Codex] $repo"
-        run_npx -y skills add "$repo" -g -a codex -y || true
+        try "codex skill $repo" run_npx -y skills add "$repo" -g -a codex -y
     fi
 done
 
@@ -222,14 +234,17 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> jq is not installed; add these hooks yourself (see README) or install jq and re-run"
     else
         [ -s "$SETTINGS_REAL" ] || echo '{}' > "$SETTINGS_REAL"
-        cp "$SETTINGS_REAL" "$SETTINGS_REAL.bak-graphify"
         # Idempotent by command string: a re-run adds nothing if the entry is
-        # already there, so the hook never fires twice per event.
+        # already there, so the hook never fires twice per event. The backup is
+        # taken inside the branch that actually writes -- taken before this
+        # check, a second run would copy the ALREADY MODIFIED file over the only
+        # pre-change copy and the backup would be worthless.
         if jq -e --arg c "$HOOK_DIR/graphify-session.sh" \
               '[.hooks // {} | .[]? | .[]? | .hooks[]? | .command] | any(contains($c))' \
               "$SETTINGS_REAL" >/dev/null 2>&1; then
             echo "--> settings.json already has the graphify hooks; left as it is"
         else
+            cp "$SETTINGS_REAL" "$SETTINGS_REAL.bak-graphify"
             TMP="$(mktemp)"
             jq --arg sess "bash \"$HOOK_DIR/graphify-session.sh\"" \
                --arg rem  "bash \"$HOOK_DIR/graphify-reminder.sh\"" '
@@ -242,6 +257,17 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
             echo "--> added the graphify hooks to $SETTINGS_REAL (backup: $SETTINGS_REAL.bak-graphify)"
         fi
     fi
+fi
+
+if [ "${#FAILED[@]}" -gt 0 ]; then
+    section "INCOMPLETE -- ${#FAILED[@]} step(s) failed"
+    for f in "${FAILED[@]}"; do echo "  - $f"; done
+    echo ""
+    echo "Those components are NOT installed. Re-run this script once the cause"
+    echo "is fixed; it is idempotent, so what succeeded is left alone."
+    echo "If a security plugin is listed above, treat it as absent whatever"
+    echo "CLAUDE.md says, and check with: claude plugin list"
+    exit 1
 fi
 
 section "Next steps"

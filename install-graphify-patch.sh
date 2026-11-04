@@ -20,16 +20,19 @@ BIN_DIR="${GRAPHIFY_BIN_DIR:-$HOME/.local/bin}"
 # whole class of problem, and apply_patch below is idempotent regardless.
 echo "==> Installing graphify-cli 0.1.0 into $VENV_DIR"
 if [ -d "$VENV_DIR" ]; then
-    # Only remove something this script could have created, never an arbitrary
-    # directory someone pointed GRAPHIFY_VENV_DIR at.
-    if [ -f "$VENV_DIR/pyvenv.cfg" ]; then
+    # pyvenv.cfg alone is NOT proof: every virtualenv has one, so that test
+    # would delete a real project's environment if GRAPHIFY_VENV_DIR pointed at
+    # it (say ~/myproject/.venv). Require the graphify entry point as well --
+    # only an environment this script set up has both.
+    if [ -f "$VENV_DIR/pyvenv.cfg" ] && [ -e "$VENV_DIR/bin/graphify" ]; then
         echo "    removing the existing environment so the patches apply to pristine files"
         rm -rf "$VENV_DIR"
     else
         # Nothing good follows: uv and python3 -m venv both refuse to create
         # into a non-empty directory, so say why here rather than let their
         # message be the first sign of trouble.
-        echo "ERROR: $VENV_DIR exists but is not a virtualenv (no pyvenv.cfg)." >&2
+        echo "ERROR: $VENV_DIR exists but is not a graphify environment." >&2
+        echo "       Expected both pyvenv.cfg and bin/graphify in it." >&2
         echo "       This script will not delete a directory it did not create." >&2
         echo "       Move it aside, or point GRAPHIFY_VENV_DIR somewhere else." >&2
         exit 1
