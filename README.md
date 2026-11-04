@@ -21,6 +21,7 @@ you can run it again at any time to update or repair an install.
 - [What the installer does](#what-the-installer-does)
 - [Security plugins](#security-plugins)
   - [How to ask for a check](#how-to-ask-for-a-check)
+- [graphify hooks](#graphify-hooks)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
 - [Updating and removal](#updating-and-removal)
@@ -85,6 +86,8 @@ After the install:
 | 5 | Cleanup | Removes caveman, which earlier versions of this toolkit installed. Backs up `~/.claude/settings.json` to `settings.json.bak-caveman` before it edits the file | same |
 
 | 6 | Auto-calling | Appends a "Security during development" section to `~/.claude/CLAUDE.md` so the on-demand security skills get reached for without being asked. Skipped if the section is already there; backs up to `CLAUDE.md.bak-security` | n/a |
+
+| 7 | graphify hooks | Installs two hooks to `~/.claude/hooks/` and merges them into `settings.json` so the code graph refreshes and announces itself every session. Needs `jq`; backs up to `settings.json.bak-graphify` | n/a |
 
 Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
@@ -167,6 +170,65 @@ ENABLE_COMMIT_REVIEW=0      # keep the turn review, drop the commit review
 SECURITY_REVIEW_MODEL=...   # or run the turn review on a cheaper model
 SECURITY_GUIDANCE_DISABLE=1 # switch the plugin off without uninstalling
 ```
+
+## graphify hooks
+
+A skill is advice the agent may or may not act on. graphify shipped as a skill,
+so a structural question often got answered with `grep` instead, and a graph
+built months ago went stale without anyone noticing. Two hooks make the graph a
+fact of every coding session instead of a suggestion.
+
+| Hook | Event | What it does |
+|------|-------|--------------|
+| `graphify-session.sh` | `SessionStart` | Refreshes the graph if source files are newer than it, then states where the graph is and to read it before Grep. Fires on every new session |
+| `graphify-reminder.sh` | `UserPromptSubmit` | Points at the graph when the prompt actually asks a caller, impact or dependency question |
+
+Both are plain shell. No model call, no network, no token cost when they stay
+silent.
+
+### Only software work
+
+Each hook gates on two tests, and prints nothing unless both pass:
+
+1. the working directory is inside a git repository, and
+2. that repository holds source files — `.py`, `.js`, `.ts`, `.go`, `.rs`,
+   `.java`, `.rb`, `.php`, `.c`, `.cpp`, `.cs` and the rest, with
+   `node_modules`, `venv`, `site-packages`, `dist` and `build` pruned so a
+   dependency tree cannot qualify a repository that has no code of its own.
+
+A session in a notes folder, a data directory or a home directory therefore
+costs nothing. A repository of only documents is skipped as well.
+
+### It refreshes, it does not create
+
+The hook updates a graph that exists and never builds one where there is none.
+Two reasons, both learned the hard way:
+
+- `git rev-parse --show-toplevel` reports the **repository** root, not the
+  project root. In a monorepo whose sub-projects each carry their own
+  `graphify-out`, taking the git root missed the graph one level down and
+  started building a graph of every project at once. The hook now walks up from
+  the working directory to the nearest existing `graphify-out`, and stops at
+  the repository boundary.
+- Creating a graph in whatever repository you happen to open is a side effect
+  nobody asked for. Where no graph exists, the hook prints one line naming
+  `graphify build` and leaves the decision to you.
+
+Rebuilds are decided by timestamp, not by an interval: a project nobody has
+touched is never rebuilt, and a busy one is always current. The build is
+detached, so a session never waits on it, and a lock directory keeps several
+sessions in one project to a single build. Progress is logged to
+`~/.claude/graphify-session.log`.
+
+### Turning them off
+
+```bash
+jq 'del(.hooks.SessionStart, .hooks.UserPromptSubmit)' ~/.claude/settings.json
+```
+
+Or run `/hooks` and remove them there. Step 7 of the installer backs the file
+up to `settings.json.bak-graphify` before it merges, and merges by command
+string, so re-running the installer never adds a second copy.
 
 ## graphify: Python support
 

@@ -70,7 +70,7 @@ SKILLS=(
     "danyuchn/asd-ste100-skill"
 )
 
-section "1/6  Node.js 22 (needed by the skills installer)"
+section "1/7  Node.js 22 (needed by the skills installer)"
 NODE_BIN_DIR=""
 if node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2>/dev/null; then
     echo "--> system Node $(node --version) is new enough"
@@ -90,7 +90,7 @@ run_npx() {
     fi
 }
 
-section "2/6  Plugins (superpowers, ponytail, karpathy, security)"
+section "2/7  Plugins (superpowers, ponytail, karpathy, security)"
 for entry in "${PLUGINS[@]}"; do
     IFS='|' read -r repo name marketplace <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
@@ -114,7 +114,7 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     done
 fi
 
-section "3/6  Skills (archify, graphify, asd-ste100)"
+section "3/7  Skills (archify, graphify, asd-ste100)"
 for repo in "${SKILLS[@]}"; do
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $repo"
@@ -126,10 +126,10 @@ for repo in "${SKILLS[@]}"; do
     fi
 done
 
-section "4/6  graphify CLI (patched for Python extraction)"
+section "4/7  graphify CLI (patched for Python extraction)"
 bash "$HERE/install-graphify-patch.sh"
 
-section "5/6  Remove caveman (no longer part of this toolkit)"
+section "5/7  Remove caveman (no longer part of this toolkit)"
 # Earlier versions shipped caveman. Its hooks ran on every agent event and
 # raised token cost, so remove any old install.
 if [ "$WANT_CLAUDE" -eq 1 ]; then
@@ -181,7 +181,7 @@ fi
 pkill -f caveman-proxy 2>/dev/null || true
 echo "--> done"
 
-section "6/6  Auto-calling for the on-demand security skills"
+section "6/7  Auto-calling for the on-demand security skills"
 # security-guidance needs nothing: it is hook-driven and runs by itself. The
 # other two are invoked, so the agent has to know when to reach for them --
 # that is what this block puts in CLAUDE.md. Guarded by a marker so re-running
@@ -196,6 +196,51 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
         cp "$CMD_FILE" "$CMD_FILE.bak-security" 2>/dev/null || true
         cat "$HERE/templates/claude-md-security.md" >> "$CMD_FILE"
         echo "--> appended the security section to $CMD_FILE"
+    fi
+fi
+
+section "7/7  graphify hooks (auto-refresh and auto-announce)"
+# A skill is advice the model may or may not act on; a hook is code that runs.
+# graphify was installed as a skill, so a structural question often got
+# answered with grep instead. These two hooks make the graph a fact of every
+# coding session: SessionStart refreshes a stale graph and states where it is,
+# UserPromptSubmit points at it when a structural question is actually asked.
+# Both gate on being a git repository that holds source files, so sessions in
+# notes, data or home directories pay nothing.
+if [ "$WANT_CLAUDE" -eq 1 ]; then
+    HOOK_DIR="$HOME/.claude/hooks"
+    mkdir -p "$HOOK_DIR"
+    for h in graphify-session.sh graphify-reminder.sh; do
+        install -m 755 "$HERE/hooks/$h" "$HOOK_DIR/$h"
+        echo "--> installed $HOOK_DIR/$h"
+    done
+
+    # ~/.claude/settings.json may be a symlink to a shared file; follow it so
+    # the merge lands on the real file instead of replacing the link.
+    SETTINGS_REAL="$(readlink -f "$HOME/.claude/settings.json" 2>/dev/null || echo "$HOME/.claude/settings.json")"
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "--> jq is not installed; add these hooks yourself (see README) or install jq and re-run"
+    else
+        [ -s "$SETTINGS_REAL" ] || echo '{}' > "$SETTINGS_REAL"
+        cp "$SETTINGS_REAL" "$SETTINGS_REAL.bak-graphify"
+        # Idempotent by command string: a re-run adds nothing if the entry is
+        # already there, so the hook never fires twice per event.
+        if jq -e --arg c "$HOOK_DIR/graphify-session.sh" \
+              '[.hooks // {} | .[]? | .[]? | .hooks[]? | .command] | any(contains($c))' \
+              "$SETTINGS_REAL" >/dev/null 2>&1; then
+            echo "--> settings.json already has the graphify hooks; left as it is"
+        else
+            TMP="$(mktemp)"
+            jq --arg sess "bash \"$HOOK_DIR/graphify-session.sh\"" \
+               --arg rem  "bash \"$HOOK_DIR/graphify-reminder.sh\"" '
+              .hooks //= {}
+              | .hooks.SessionStart //= []
+              | .hooks.UserPromptSubmit //= []
+              | .hooks.SessionStart += [{hooks: [{type: "command", command: $sess, timeout: 15}]}]
+              | .hooks.UserPromptSubmit += [{hooks: [{type: "command", command: $rem, timeout: 10}]}]
+            ' "$SETTINGS_REAL" > "$TMP" && mv "$TMP" "$SETTINGS_REAL"
+            echo "--> added the graphify hooks to $SETTINGS_REAL (backup: $SETTINGS_REAL.bak-graphify)"
+        fi
     fi
 fi
 
