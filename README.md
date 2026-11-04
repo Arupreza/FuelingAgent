@@ -174,51 +174,62 @@ SECURITY_GUIDANCE_DISABLE=1 # switch the plugin off without uninstalling
 ## graphify hooks
 
 A skill is advice the agent may or may not act on. graphify shipped as a skill,
-so a structural question often got answered with `grep` instead, and a graph
-built months ago went stale without anyone noticing. Two hooks make the graph a
-fact of every coding session instead of a suggestion.
+so a "who calls this" question often got answered with `grep` instead. Two
+hooks state that the graph exists, so using it is not a decision.
 
 | Hook | Event | What it does |
 |------|-------|--------------|
-| `graphify-session.sh` | `SessionStart` | Refreshes the graph if source files are newer than it, then states where the graph is and to read it before Grep. Fires on every new session |
-| `graphify-reminder.sh` | `UserPromptSubmit` | Points at the graph when the prompt actually asks a caller, impact or dependency question |
+| `graphify-session.sh` | `SessionStart` | Names the graph and the CLI, and says to query it before Grep. Fires on every new session, so closing one and starting another the next day re-arms it |
+| `graphify-reminder.sh` | `UserPromptSubmit` | Repeats the pointer when a caller, impact or dependency question is actually asked. In a long session the SessionStart line drifts far up the context; this brings it back at the moment it matters |
 
-Both are plain shell. No model call, no network, no token cost when they stay
-silent.
+`graphify-lib.sh` holds the gate both share. Plain shell: no model call, no
+network, no token cost when they stay silent.
+
+### They do not refresh the graph, because graphify already does
+
+An earlier version rebuilt the graph in the background on a one-hour throttle.
+That was redundant. graphify checks freshness on every query and rebuilds
+itself:
+
+```
+$ graphify callers _probe_fn
+  graph is stale (1 files changed) -- rebuilding...
+  rebuilt
+```
+
+A timer would duplicate the tool and rebuild even when nobody asks a
+structural question. Freshness was never the gap; reaching for the tool was.
+
+### Where the graph actually lives
+
+Worth stating, because the obvious guess is wrong. graphify is
+**workspace**-scoped, not per-project: `graphify root` reports the workspace it
+builds, which in a monorepo is the whole tree rather than the sub-project you
+are sitting in, and is not the same as `git rev-parse --show-toplevel`.
+
+| Artefact | Path |
+|----------|------|
+| Graph and caches | `~/.cache/graphify/<workspace>-<hash>/` |
+| Readable summary | `<workspace>/ARCHITECTURE_GRAPH.md` |
+
+A `graphify-out/` directory in a project is **not** current graphify output. It
+is left over from an older version, it is never written again, and anything
+reading it answers from a months-old graph. Delete any you find.
 
 ### Only software work
 
-Each hook gates on two tests, and prints nothing unless both pass:
+Each hook prints nothing unless all three hold:
 
-1. the working directory is inside a git repository, and
+1. the working directory is inside a git repository,
 2. that repository holds source files — `.py`, `.js`, `.ts`, `.go`, `.rs`,
    `.java`, `.rb`, `.php`, `.c`, `.cpp`, `.cs` and the rest, with
-   `node_modules`, `venv`, `site-packages`, `dist` and `build` pruned so a
-   dependency tree cannot qualify a repository that has no code of its own.
+   `node_modules`, `venv`, `site-packages`, `dist`, `build` and `__pycache__`
+   pruned so a dependency tree cannot qualify a repository with no code of its
+   own, and
+3. `graphify root` recognises a workspace.
 
-A session in a notes folder, a data directory or a home directory therefore
-costs nothing. A repository of only documents is skipped as well.
-
-### It refreshes, it does not create
-
-The hook updates a graph that exists and never builds one where there is none.
-Two reasons, both learned the hard way:
-
-- `git rev-parse --show-toplevel` reports the **repository** root, not the
-  project root. In a monorepo whose sub-projects each carry their own
-  `graphify-out`, taking the git root missed the graph one level down and
-  started building a graph of every project at once. The hook now walks up from
-  the working directory to the nearest existing `graphify-out`, and stops at
-  the repository boundary.
-- Creating a graph in whatever repository you happen to open is a side effect
-  nobody asked for. Where no graph exists, the hook prints one line naming
-  `graphify build` and leaves the decision to you.
-
-Rebuilds are decided by timestamp, not by an interval: a project nobody has
-touched is never rebuilt, and a busy one is always current. The build is
-detached, so a session never waits on it, and a lock directory keeps several
-sessions in one project to a single build. Progress is logged to
-`~/.claude/graphify-session.log`.
+A session in a notes folder, a data directory or a repository of only documents
+therefore costs nothing.
 
 ### Turning them off
 

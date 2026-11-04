@@ -202,15 +202,15 @@ fi
 section "7/7  graphify hooks (auto-refresh and auto-announce)"
 # A skill is advice the model may or may not act on; a hook is code that runs.
 # graphify was installed as a skill, so a structural question often got
-# answered with grep instead. These two hooks make the graph a fact of every
-# coding session: SessionStart refreshes a stale graph and states where it is,
-# UserPromptSubmit points at it when a structural question is actually asked.
-# Both gate on being a git repository that holds source files, so sessions in
-# notes, data or home directories pay nothing.
+# answered with grep instead. These hooks state that the graph exists, on every
+# new session and again whenever a structural question is asked. They do not
+# refresh anything: graphify checks freshness on each query and rebuilds
+# itself. Both gate on being a git repository that holds source files, so
+# sessions in notes, data or home directories pay nothing.
 if [ "$WANT_CLAUDE" -eq 1 ]; then
     HOOK_DIR="$HOME/.claude/hooks"
     mkdir -p "$HOOK_DIR"
-    for h in graphify-session.sh graphify-reminder.sh; do
+    for h in graphify-lib.sh graphify-session.sh graphify-reminder.sh; do
         install -m 755 "$HERE/hooks/$h" "$HOOK_DIR/$h"
         echo "--> installed $HOOK_DIR/$h"
     done
