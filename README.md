@@ -20,6 +20,7 @@ you can run it again at any time to update or repair an install.
 - [Quick start](#quick-start)
 - [What the installer does](#what-the-installer-does)
 - [Security plugins](#security-plugins)
+  - [How to ask for a check](#how-to-ask-for-a-check)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
 - [Updating and removal](#updating-and-removal)
@@ -103,6 +104,37 @@ them out because `phoenix-sast-rules` needs semgrep or opengrep on `PATH`,
 `phoenix-prd-pipeline` overlaps superpowers' planning skills, and
 `phoenix-cti-search` and `phoenix-docs-research` are threat-intelligence and
 browser-automation tools rather than coding aids.
+
+### How to ask for a check
+
+`security-guidance` takes no command. It runs on every edit, at the end of every
+turn, and on each commit Claude makes. Findings appear in the session and are
+fixed there.
+
+The other two are invoked:
+
+| You want | Call |
+|----------|------|
+| Deep scan of the whole repository | `/claude-security`, or `/claude-security scan the whole repo at high` |
+| Scan only this branch's changes | `/claude-security scan my branch` |
+| Findings turned into verified patch files | `/claude-security suggest patches` |
+| Fast pass over the branch diff | `/security-0day [base-ref]` |
+| OWASP Top 10 and ASVS L1 audit | `/security-audit [scope]`, e.g. `backend` or `A01,A03` |
+| STRIDE/DREAD threat model | `/threatmodel [scope]`, e.g. `src/payments/` |
+
+Plain English reaches the same place: "run a Claude Security scan on the whole
+repo at medium" does what the slash command does.
+
+`/claude-security` states its time and token cost and waits for you to accept it.
+It leaves vendored code such as `node_modules` and virtual environments alone
+unless you point it at them.
+
+### Two commands share the name /security-review
+
+Claude Code has a built-in `/security-review`, and phoenix-security-review ships
+a command with the same name, so typing it may not give you the one you expect.
+Use `/security-audit` for Phoenix's whole-repository pass and `/claude-security`
+for Anthropic's, and leave `/security-review` for the built-in branch check.
 
 ### Do not run Phoenix's own install.sh
 

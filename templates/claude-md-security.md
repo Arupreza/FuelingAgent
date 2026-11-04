@@ -10,10 +10,16 @@ Installed at user scope, so these apply in every repository.
 - **claude-security** (Anthropic) — invoke for a whole-repository vulnerability
   scan. Use it when the question is "is this codebase safe", not "is this change
   safe": `/security-review` covers only the current branch's diff.
-- **phoenix-security-review** — invoke `security-assessment` for a whole-repo
-  AppSec pass against OWASP/ASVS, or `threat-modeling` for STRIDE/DREAD on a new
-  design. Do NOT run this plugin's own `install.sh`: its hook preset duplicates
-  security-guidance's per-edit scan and diff review.
+- **phoenix-security-review** — `/security-audit [scope]` for a whole-repo
+  OWASP/ASVS pass, `/security-0day` for a fast branch diff, `/threatmodel
+  [scope]` for STRIDE/DREAD. Do NOT run this plugin's own `install.sh`: its hook
+  preset duplicates security-guidance's per-edit scan and diff review.
+
+Call the deep ones as `/claude-security` (add `scan the whole repo at high`,
+`scan my branch` or `suggest patches` to skip the menu). Do not use
+`/security-review` to reach either plugin: Claude Code has a built-in command
+of that name and Phoenix ships another, so the name is ambiguous. Use
+`/security-audit` or `/claude-security` instead.
 
 Write repository-specific rules in plain language in
 `.claude/claude-security-guidance.md`, and literal patterns in
