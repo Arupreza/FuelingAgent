@@ -313,18 +313,27 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     echo "--> installed /security-audit (shim for phoenix-security-review)"
 fi
 
-section "7/7  graphify hooks (auto-refresh and auto-announce)"
+section "7/7  session hooks (graphify + CLAUDE.md work log)"
 # A skill is advice the model may or may not act on; a hook is code that runs.
+#
 # graphify was installed as a skill, so a structural question often got
-# answered with grep instead. These hooks state that the graph exists, on every
-# new session and again whenever a structural question is asked. They do not
-# refresh anything: graphify checks freshness on each query and rebuilds
-# itself. Both gate on being a git repository that holds source files, so
-# sessions in notes, data or home directories pay nothing.
+# answered with grep instead. graphify-session.sh and graphify-reminder.sh
+# state that the graph exists, on every new session and again whenever a
+# structural question is asked. They refresh nothing: graphify checks freshness
+# on each query and rebuilds itself.
+#
+# journal-stamp.sh and journal-stop.sh keep a CLAUDE.md in every code
+# repository and keep its work log current: the first records that the session
+# edited a file, the second blocks the end of the turn once, asking for the
+# log entry while the work is still in context.
+#
+# All four gate on being a git repository that holds source files, so sessions
+# in notes, data or home directories pay nothing.
 if [ "$WANT_CLAUDE" -eq 1 ]; then
     HOOK_DIR="$HOME/.claude/hooks"
     mkdir -p "$HOOK_DIR"
-    for h in graphify-lib.sh graphify-session.sh graphify-reminder.sh; do
+    for h in graphify-lib.sh graphify-session.sh graphify-reminder.sh \
+             journal-stamp.sh journal-stop.sh; do
         install -m 755 "$HERE/hooks/$h" "$HOOK_DIR/$h"
         echo "--> installed $HOOK_DIR/$h"
     done
@@ -336,28 +345,40 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> jq is not installed; add these hooks yourself (see README) or install jq and re-run"
     else
         [ -s "$SETTINGS_REAL" ] || echo '{}' > "$SETTINGS_REAL"
-        # Idempotent by command string: a re-run adds nothing if the entry is
-        # already there, so the hook never fires twice per event. The backup is
-        # taken inside the branch that actually writes -- taken before this
-        # check, a second run would copy the ALREADY MODIFIED file over the only
-        # pre-change copy and the backup would be worthless.
-        if jq -e --arg c "$HOOK_DIR/graphify-session.sh" \
-              '[.hooks // {} | .[]? | .[]? | .hooks[]? | .command] | any(contains($c))' \
-              "$SETTINGS_REAL" >/dev/null 2>&1; then
-            echo "--> settings.json already has the graphify hooks; left as it is"
-        else
-            cp "$SETTINGS_REAL" "$SETTINGS_REAL.bak-graphify"
-            TMP="$(mktemp)"
-            jq --arg sess "bash \"$HOOK_DIR/graphify-session.sh\"" \
-               --arg rem  "bash \"$HOOK_DIR/graphify-reminder.sh\"" '
+
+        # add_hook <event> <matcher|""> <script>
+        #
+        # Idempotent per script: a re-run adds nothing if that script is
+        # already wired, so no hook ever fires twice per event, and a hook
+        # added to this list later is picked up without re-adding the rest.
+        add_hook() {
+            local ev="$1" m="$2" s="$3" tmp
+            if jq -e --arg c "$HOOK_DIR/$s" \
+                  '[.hooks // {} | .[]? | .[]? | .hooks[]? | .command] | any(contains($c))' \
+                  "$SETTINGS_REAL" >/dev/null 2>&1; then
+                echo "--> $ev already runs $s; left as it is"
+                return 0
+            fi
+            # One backup per machine, taken before the first write this script
+            # ever makes: the oldest copy is the only one guaranteed to predate
+            # every change, so it is never overwritten by a later run.
+            [ -f "$SETTINGS_REAL.bak-fca-hooks" ] || cp "$SETTINGS_REAL" "$SETTINGS_REAL.bak-fca-hooks"
+            tmp="$(mktemp)"
+            jq --arg ev "$ev" --arg m "$m" --arg cmd "bash \"$HOOK_DIR/$s\"" '
               .hooks //= {}
-              | .hooks.SessionStart //= []
-              | .hooks.UserPromptSubmit //= []
-              | .hooks.SessionStart += [{hooks: [{type: "command", command: $sess, timeout: 15}]}]
-              | .hooks.UserPromptSubmit += [{hooks: [{type: "command", command: $rem, timeout: 10}]}]
-            ' "$SETTINGS_REAL" > "$TMP" && mv "$TMP" "$SETTINGS_REAL"
-            echo "--> added the graphify hooks to $SETTINGS_REAL (backup: $SETTINGS_REAL.bak-graphify)"
-        fi
+              | .hooks[$ev] //= []
+              | .hooks[$ev] += [ (if $m == "" then {} else {matcher: $m} end)
+                                 + {hooks: [{type: "command", command: $cmd, timeout: 15}]} ]
+            ' "$SETTINGS_REAL" > "$tmp" && mv "$tmp" "$SETTINGS_REAL" \
+                || { rm -f "$tmp"; note_failure "settings.json merge for $s"; return 1; }
+            echo "--> added $s to $ev"
+        }
+
+        add_hook SessionStart     ""            graphify-session.sh
+        add_hook UserPromptSubmit ""            graphify-reminder.sh
+        add_hook PostToolUse      "Write|Edit"  journal-stamp.sh
+        add_hook Stop             ""            journal-stop.sh
+        echo "--> settings: $SETTINGS_REAL (backup: $SETTINGS_REAL.bak-fca-hooks)"
     fi
 fi
 

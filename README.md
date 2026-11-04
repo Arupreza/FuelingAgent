@@ -15,7 +15,9 @@ One command installs an all-in-one toolkit for coding work:
 - **security** — review of code as it is written, plus two commands for a
   whole-repo audit;
 - **a dependency graph** — a cross-repo graph that answers who-calls-what and
-  what-a-change-breaks, and refreshes itself.
+  what-a-change-breaks, and refreshes itself;
+- **a CLAUDE.md per repository** — written on the first session that changes
+  code, and its work log appended at the end of every session after that.
 
 Works for Claude Code and OpenAI Codex. Re-run the installer any time to update
 or repair an install; it never duplicates one.
@@ -28,7 +30,7 @@ or repair an install; it never duplicates one.
 - [What the installer does](#what-the-installer-does)
 - [Security plugins](#security-plugins)
   - [Asking for a check](#asking-for-a-check)
-- [graphify hooks](#graphify-hooks)
+- [Session hooks](#session-hooks)
 - [Supply chain](#supply-chain)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
@@ -95,7 +97,7 @@ After the install:
 
 | 6 | Auto-calling | Appends a "Security during development" section to `~/.claude/CLAUDE.md` so the on-demand security skills get reached for without being asked, and installs the `/security-audit` command shim. Skipped if the section is already there; backs up to `CLAUDE.md.bak-security` | n/a |
 
-| 7 | graphify hooks | Installs two hooks to `~/.claude/hooks/` and merges them into `settings.json` so the code graph refreshes and announces itself every session. Needs `jq`; backs up to `settings.json.bak-graphify` | n/a |
+| 7 | Session hooks | Installs four hooks to `~/.claude/hooks/` and merges them into `settings.json`: the code graph announces itself every session, and every code repository keeps a `CLAUDE.md` with a current work log. Needs `jq`; backs up to `settings.json.bak-fca-hooks` | n/a |
 
 Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
@@ -148,30 +150,27 @@ Only one of Phoenix's six plugins is installed. The rest are in `/plugin menu`:
 superpowers' planning skills, and the other two are threat-intelligence and
 browser-automation tools rather than coding aids.
 
-## graphify hooks
+## Session hooks
 
-graphify ships as a skill, so reaching for it was a decision the agent made
-each time — and a "who calls this" question often got answered with `grep`.
-Two hooks state that the graph exists, so using it is not a choice.
+A skill description is advice the agent may or may not act on. A hook is code
+that runs. Anything that has to happen every time belongs in a hook, and these
+four cover the two things that kept not happening.
 
 | Hook | Event | Does |
 |------|-------|------|
 | `graphify-session.sh` | `SessionStart` | names the graph and the CLI, every new session |
 | `graphify-reminder.sh` | `UserPromptSubmit` | repeats the pointer when a caller, impact or dependency question is actually asked, since in a long session the SessionStart line drifts far up the context |
+| `journal-stamp.sh` | `PostToolUse` (`Write`, `Edit`) | records that this session changed a file in this repository |
+| `journal-stop.sh` | `Stop` | if it did, holds the turn open once to get `CLAUDE.md` written or its work log appended |
 
-`graphify-lib.sh` holds the gate both share. Plain shell: no model call, no
+`graphify-lib.sh` holds the gate all four share. Plain shell: no model call, no
 network, nothing when silent.
 
-They print only when all three hold: inside a git repository, that repository
-holds source files (`node_modules`, `venv`, `site-packages`, `dist`, `build`,
-`__pycache__` pruned), and `graphify root` recognises a workspace. A notes
-folder, a data directory or a docs-only repository costs nothing.
-
-They run in **every** repository you open, including one you have just cloned
-and not read. The hooks execute no code from the repository, but they do point
-the agent at its `ARCHITECTURE_GRAPH.md`, and a hostile repository could put a
-prompt injection in that file. The same is true of any file the agent reads, so
-this adds no new exposure — but in an untrusted checkout, read before you act.
+The graphify pair prints only when all three hold: inside a git repository,
+that repository holds source files (`node_modules`, `venv`, `site-packages`,
+`dist`, `build`, `__pycache__` pruned), and `graphify root` recognises a
+workspace. The journal pair needs the first two. A notes folder, a data
+directory or a docs-only repository costs nothing.
 
 ### It refreshes itself
 
@@ -194,11 +193,45 @@ A `graphify-out/` directory is **not** current output — it is left over from a
 older version, never written again, and anything reading it answers from a
 months-old graph. Delete any you find.
 
+### The CLAUDE.md work log
+
+Every repository you write code in gets a `CLAUDE.md`: what the project is, how
+to run and test it, the conventions a newcomer would get wrong, and a
+`## Work log` section. The next session reads it before anything else, because
+Claude Code loads it automatically.
+
+Keeping it current is the part a rule cannot do. The end of a session is when
+the context is fullest and a written instruction is most likely to be dropped —
+so this is a `Stop` hook instead, which runs after the agent believes it has
+finished and hands the turn back with one request: log what changed.
+
+It is deliberately narrow:
+
+- **Only when work happened.** A dirty working tree proves nothing; a
+  repository can sit dirty for months. The signal is an edit made in *this*
+  session, stamped by `journal-stamp.sh` into `.git/fuelingcodeagent/` — inside
+  `.git`, so it is never committed and never shows in `git status`.
+- **Once per session, and it cannot loop.** The stamp is removed before the
+  hook asks, so an agent that ignores the request is not asked twice and the
+  session always ends.
+- **Nothing to say, nothing said.** An entry already dated today, or a session
+  that changed no file, and the hook exits silently.
+
+Turn it off alone with `jq 'del(.hooks.Stop)'`, and the stamp with
+`jq 'del(.hooks.PostToolUse)'`.
+
+They run in **every** repository you open, including one you have just cloned
+and not read. The hooks execute no code from the repository, but they do point
+the agent at its `ARCHITECTURE_GRAPH.md`, and a hostile repository could put a
+prompt injection in that file. The same is true of any file the agent reads, so
+this adds no new exposure — but in an untrusted checkout, read before you act.
+
 ### Turning them off
 
-`/hooks`, or `jq 'del(.hooks.SessionStart, .hooks.UserPromptSubmit)'` on
-`~/.claude/settings.json`. Step 7 backs up to `settings.json.bak-graphify` and
-merges by command string, so a re-run never adds a second copy.
+`/hooks`, or `jq 'del(.hooks.SessionStart, .hooks.UserPromptSubmit, .hooks.PostToolUse, .hooks.Stop)'`
+on `~/.claude/settings.json`. Step 7 backs up to `settings.json.bak-fca-hooks`
+and merges per script name, so a re-run never adds a second copy — and a hook
+added to the toolkit later is wired without re-adding the others.
 
 ## Supply chain
 
@@ -326,6 +359,7 @@ codex plugin remove <name>@<marketplace>       # Codex
 
 ```
 FuelingCodeAgent/
+├── CLAUDE.md                     # this repository's own orientation and work log
 ├── install.sh                    # entry point (Claude Code and Codex)
 ├── install-graphify-patch.sh     # graphify CLI install and patch, called by install.sh
 ├── scripts/
@@ -333,7 +367,9 @@ FuelingCodeAgent/
 ├── hooks/
 │   ├── graphify-lib.sh           # shared gate: code repo, graphify workspace
 │   ├── graphify-session.sh       # SessionStart: names the graph
-│   └── graphify-reminder.sh      # UserPromptSubmit: names it again when asked
+│   ├── graphify-reminder.sh      # UserPromptSubmit: names it again when asked
+│   ├── journal-stamp.sh          # PostToolUse: marks that this session edited a file
+│   └── journal-stop.sh           # Stop: gets CLAUDE.md written and its work log appended
 ├── commands/
 │   └── security-audit.md         # /security-audit, a shim for the namespaced plugin command
 ├── patches/graphify/

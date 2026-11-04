@@ -17,6 +17,32 @@
 # often reached for grep instead. These hooks do only that one job: state that
 # the graph exists. The tool keeps it current.
 
+# gf_code_repo -- print the git root, but only for a repository that holds
+# source files. This is the shared "is this software work" gate: sessions in
+# notes, data or home directories fail it and every hook that uses it exits
+# without doing anything.
+gf_code_repo() {
+    local root
+    root="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
+    [ -n "$root" ] || return 1
+    [ -n "$(find "$root" -maxdepth 4 \
+        \( -path '*/node_modules' -o -path '*/.git' -o -path '*/venv' \
+           -o -path '*/.venv' -o -path '*/site-packages' -o -path '*/dist' \
+           -o -path '*/build' -o -path '*/__pycache__' \) -prune -o \
+        -type f \( -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.tsx' \
+           -o -name '*.jsx' -o -name '*.go' -o -name '*.rs' -o -name '*.java' \
+           -o -name '*.kt' -o -name '*.rb' -o -name '*.php' -o -name '*.cs' \
+           -o -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' \
+           -o -name '*.hpp' -o -name '*.swift' -o -name '*.scala' -o -name '*.sh' \) \
+        -print -quit 2>/dev/null)" ] || return 1
+    printf '%s' "$root"
+}
+
+# gf_session_id -- print the session id from a hook payload given on stdin.
+gf_session_id() {
+    sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+}
+
 # gf_workspace -- print the graphify workspace root, or nothing.
 #
 # Two gates, so sessions that are not software work cost nothing: the
@@ -26,17 +52,7 @@
 # whole tree rather than the sub-project, and is not the same as the git root.
 gf_workspace() {
     command -v graphify >/dev/null 2>&1 || return 1
-    git rev-parse --show-toplevel >/dev/null 2>&1 || return 1
-    [ -n "$(find . -maxdepth 4 \
-        \( -path '*/node_modules' -o -path '*/.git' -o -path '*/venv' \
-           -o -path '*/.venv' -o -path '*/site-packages' -o -path '*/dist' \
-           -o -path '*/build' -o -path '*/__pycache__' \) -prune -o \
-        -type f \( -name '*.py' -o -name '*.js' -o -name '*.ts' -o -name '*.tsx' \
-           -o -name '*.jsx' -o -name '*.go' -o -name '*.rs' -o -name '*.java' \
-           -o -name '*.kt' -o -name '*.rb' -o -name '*.php' -o -name '*.cs' \
-           -o -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' \
-           -o -name '*.hpp' -o -name '*.swift' -o -name '*.scala' \) \
-        -print -quit 2>/dev/null)" ] || return 1
+    gf_code_repo >/dev/null || return 1
     local root
     root="$(graphify root 2>/dev/null | head -1)"
     [ -n "$root" ] && [ -d "$root" ] || return 1
