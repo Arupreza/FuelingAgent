@@ -118,6 +118,24 @@ Both take a scope if you want one (`/security-audit backend`), and both work
 from plain English, so "scan the whole repo with Claude Security" does the same
 thing as the first.
 
+**Which one.** They answer different questions. `/claude-security` asks "are
+there real vulnerabilities in this code"; it verifies each finding with a panel
+of agents before reporting it and can write the patches. `/security-audit` asks
+"does this code meet OWASP Top 10 and ASVS L1"; it works through a checklist, so
+it tells you about coverage rather than about exploitability.
+
+| Situation | Use |
+|-----------|-----|
+| Before a release, or on a repository you inherited | `/claude-security` |
+| You want the findings fixed, not just listed | `/claude-security suggest patches` |
+| Someone asks whether the code meets OWASP or ASVS | `/security-audit` |
+| You need a section-by-section report to hand over | `/security-audit` |
+| One file or directory you are unsure about | either, with the path as the scope |
+
+In doubt, run `/claude-security`: a verified finding is worth more than a
+checklist row, and it is the one that can fix what it finds. Reach for
+`/security-audit` when the standard itself is the question.
+
 `security-guidance` is not in the list because it takes no command: it runs on
 every edit, at the end of every turn, and on each commit Claude makes.
 

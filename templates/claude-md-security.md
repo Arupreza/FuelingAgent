@@ -15,6 +15,11 @@ For a check the user asks for, there are two commands and no others:
   branch's diff.
 - `/security-audit [scope]` — Phoenix's OWASP Top 10 and ASVS L1 pass.
 
+Pick between them by the question being asked: `/claude-security` for "are there
+real vulnerabilities here", since it verifies each finding and can patch it;
+`/security-audit` for "does this meet OWASP or ASVS", since it reports checklist
+coverage. When it is not clear, use `/claude-security`.
+
 Never reach for `/security-review` to call either one: Claude Code has a
 built-in command of that name and Phoenix ships another, so it is ambiguous.
 
