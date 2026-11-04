@@ -12,22 +12,22 @@ echo "==> Installing graphify-cli 0.1.0 into $VENV_DIR"
 if command -v uv >/dev/null 2>&1; then
     uv venv "$VENV_DIR" --quiet
     echo "==> Installing the pinned wheel (bundled, so this doesn't drift with future PyPI releases)"
-    uv pip install --python "$VENV_DIR/bin/python" --quiet "$HERE/patches/graphify_cli-0.1.0-py3-none-any.whl"
+    uv pip install --python "$VENV_DIR/bin/python" --quiet "$HERE/patches/graphify/graphify_cli-0.1.0-py3-none-any.whl"
 else
     echo "    (uv not found, falling back to python3 -m venv + pip -- if this fails with"
     echo "     an ensurepip error, install python3-venv via your package manager first)"
     python3 -m venv "$VENV_DIR"
     echo "==> Installing the pinned wheel (bundled, so this doesn't drift with future PyPI releases)"
     "$VENV_DIR/bin/pip" install --quiet --upgrade pip
-    "$VENV_DIR/bin/pip" install --quiet "$HERE/patches/graphify_cli-0.1.0-py3-none-any.whl"
+    "$VENV_DIR/bin/pip" install --quiet "$HERE/patches/graphify/graphify_cli-0.1.0-py3-none-any.whl"
 fi
 
 PKG_DIR="$("$VENV_DIR/bin/python" -c "import graphify, os; print(os.path.dirname(graphify.__file__))")"
 echo "==> Package installed at: $PKG_DIR"
 
 echo "==> Applying Python-extraction patches"
-patch -p1 -d "$PKG_DIR/.." < "$HERE/patches/extract.py.diff"
-patch -p1 -d "$PKG_DIR/.." < "$HERE/patches/workspace.py.diff"
+patch -p1 -d "$PKG_DIR/.." < "$HERE/patches/graphify/extract.py.diff"
+patch -p1 -d "$PKG_DIR/.." < "$HERE/patches/graphify/workspace.py.diff"
 
 echo "==> Verifying the patched package imports and parses cleanly"
 "$VENV_DIR/bin/python" -c "import ast; ast.parse(open('$PKG_DIR/extract.py').read()); ast.parse(open('$PKG_DIR/workspace.py').read()); print('syntax OK')"
