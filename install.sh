@@ -53,13 +53,24 @@ PLUGINS=(
     "DietrichGebert/ponytail|ponytail|ponytail"
     "multica-ai/andrej-karpathy-skills|andrej-karpathy-skills|karpathy-skills"
 )
+# Claude Code only. security-guidance is built on Claude Code hooks and
+# claude-security is an Anthropic plugin; neither has a Codex equivalent.
+CLAUDE_ONLY_PLUGINS=(
+    "anthropics/claude-plugins-official|security-guidance|claude-plugins-official"
+    "anthropics/claude-plugins-official|claude-security|claude-plugins-official"
+    # Only phoenix-security-review of Phoenix's six plugins. Its hooks are
+    # opt-in and stay unwired unless its own install.sh is run -- do not run it:
+    # its full preset duplicates security-guidance's per-edit scan and diff
+    # review, which doubles the model cost and the findings in context.
+    "Security-Phoenix-demo/security-skills-claude-code|phoenix-security-review|phoenix-security"
+)
 SKILLS=(
     "tt-a1i/archify"
     "ChihebBENCHEIKH1/graphify"
     "danyuchn/asd-ste100-skill"
 )
 
-section "1/5  Node.js 22 (needed by the skills installer)"
+section "1/6  Node.js 22 (needed by the skills installer)"
 NODE_BIN_DIR=""
 if node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2>/dev/null; then
     echo "--> system Node $(node --version) is new enough"
@@ -79,7 +90,7 @@ run_npx() {
     fi
 }
 
-section "2/5  Plugins (superpowers, ponytail, andrej-karpathy-skills)"
+section "2/6  Plugins (superpowers, ponytail, karpathy, security)"
 for entry in "${PLUGINS[@]}"; do
     IFS='|' read -r repo name marketplace <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
@@ -94,7 +105,16 @@ for entry in "${PLUGINS[@]}"; do
     fi
 done
 
-section "3/5  Skills (archify, graphify, asd-ste100)"
+if [ "$WANT_CLAUDE" -eq 1 ]; then
+    for entry in "${CLAUDE_ONLY_PLUGINS[@]}"; do
+        IFS='|' read -r repo name marketplace <<< "$entry"
+        echo "--> [Claude Code] $name"
+        claude plugin marketplace add "$repo" || true
+        claude plugin install "$name@$marketplace" || true
+    done
+fi
+
+section "3/6  Skills (archify, graphify, asd-ste100)"
 for repo in "${SKILLS[@]}"; do
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $repo"
@@ -106,10 +126,10 @@ for repo in "${SKILLS[@]}"; do
     fi
 done
 
-section "4/5  graphify CLI (patched for Python extraction)"
+section "4/6  graphify CLI (patched for Python extraction)"
 bash "$HERE/install-graphify-patch.sh"
 
-section "5/5  Remove caveman (no longer part of this toolkit)"
+section "5/6  Remove caveman (no longer part of this toolkit)"
 # Earlier versions shipped caveman. Its hooks ran on every agent event and
 # raised token cost, so remove any old install.
 if [ "$WANT_CLAUDE" -eq 1 ]; then
@@ -160,6 +180,24 @@ if [ "$WANT_CODEX" -eq 1 ]; then
 fi
 pkill -f caveman-proxy 2>/dev/null || true
 echo "--> done"
+
+section "6/6  Auto-calling for the on-demand security skills"
+# security-guidance needs nothing: it is hook-driven and runs by itself. The
+# other two are invoked, so the agent has to know when to reach for them --
+# that is what this block puts in CLAUDE.md. Guarded by a marker so re-running
+# the installer does not append a second copy.
+if [ "$WANT_CLAUDE" -eq 1 ]; then
+    CMD_FILE="$HOME/.claude/CLAUDE.md"
+    MARKER="# Security during development"
+    mkdir -p "$HOME/.claude"
+    if [ -f "$CMD_FILE" ] && grep -qF "$MARKER" "$CMD_FILE"; then
+        echo "--> CLAUDE.md already has the security section; left as it is"
+    else
+        cp "$CMD_FILE" "$CMD_FILE.bak-security" 2>/dev/null || true
+        cat "$HERE/templates/claude-md-security.md" >> "$CMD_FILE"
+        echo "--> appended the security section to $CMD_FILE"
+    fi
+fi
 
 section "Next steps"
 if [ "$WANT_CLAUDE" -eq 1 ]; then

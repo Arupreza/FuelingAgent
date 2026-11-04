@@ -19,6 +19,7 @@ you can run it again at any time to update or repair an install.
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
 - [What the installer does](#what-the-installer-does)
+- [Security plugins](#security-plugins)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
 - [Updating and removal](#updating-and-removal)
@@ -35,6 +36,9 @@ you can run it again at any time to update or repair an install.
 | graphify | CLI + skill | [`ChihebBENCHEIKH1/graphify`](https://github.com/ChihebBENCHEIKH1/graphify) + patch in this repo | Answers "who calls this" and "what breaks" from a dependency graph; patched to extract Python | ✓ | ✓ |
 | archify | skill | [`tt-a1i/archify`](https://github.com/tt-a1i/archify) | Interactive HTML diagrams and one-page explainers | ✓ | ✓ |
 | asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ |
+| security-guidance | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Reviews code as it is written: regex on every edit, model review of each turn's diff, agentic review on commit. Runs by itself | ✓ | — |
+| claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — |
+| phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | — |
 | security review | command + GitHub Action | [`anthropics/claude-code-security-review`](https://github.com/anthropics/claude-code-security-review) | AI security review of changes and pull requests | ✓ | see [below](#security-review) |
 
 ## Requirements
@@ -79,7 +83,52 @@ After the install:
 | 4 | graphify CLI | Installs the pinned `graphify-cli==0.1.0` wheel into `~/.venvs/graphify`, applies the Python patches, links `~/.local/bin/graphify` | shared |
 | 5 | Cleanup | Removes caveman, which earlier versions of this toolkit installed. Backs up `~/.claude/settings.json` to `settings.json.bak-caveman` before it edits the file | same |
 
+| 6 | Auto-calling | Appends a "Security during development" section to `~/.claude/CLAUDE.md` so the on-demand security skills get reached for without being asked. Skipped if the section is already there; backs up to `CLAUDE.md.bak-security` | n/a |
+
 Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
+
+## Security plugins
+
+Three plugins cover security, at different depths:
+
+| Plugin | When it runs | Cost |
+|--------|--------------|------|
+| security-guidance | by itself, on every edit, turn and commit | regex layer free; the diff and commit reviews each spend a model call |
+| claude-security | when you invoke it | one deep multi-agent scan |
+| phoenix-security-review | when you invoke it | one pass |
+
+Only `phoenix-security-review` of Phoenix's six plugins is installed. The other
+five are reachable through `/plugin menu` if you want them; the toolkit leaves
+them out because `phoenix-sast-rules` needs semgrep or opengrep on `PATH`,
+`phoenix-prd-pipeline` overlaps superpowers' planning skills, and
+`phoenix-cti-search` and `phoenix-docs-research` are threat-intelligence and
+browser-automation tools rather than coding aids.
+
+### Do not run Phoenix's own install.sh
+
+Phoenix ships hook presets that its `install.sh` writes into a project's
+`.claude/settings.json`. Its full preset duplicates security-guidance exactly:
+
+| Layer | security-guidance | Phoenix full preset |
+|-------|-------------------|---------------------|
+| Per-edit scan | `PostToolUse` on Edit/Write | `post-edit-quickscan.sh` |
+| Diff review | `Stop`, end of turn | `session-end-security-0day.sh` |
+
+Two scanners on one edit duplicate the findings in context, and two diff reviews
+bill twice. Phoenix's hooks are opt-in and stay unwired after a plain
+marketplace install, so the fix is to never run that script.
+
+### Turning the cost down
+
+The model-backed layers of security-guidance default to a Claude Opus model, one
+call per file-changing turn:
+
+```bash
+ENABLE_STOP_REVIEW=0        # keep only the free per-edit regex check
+ENABLE_COMMIT_REVIEW=0      # keep the turn review, drop the commit review
+SECURITY_REVIEW_MODEL=...   # or run the turn review on a cheaper model
+SECURITY_GUIDANCE_DISABLE=1 # switch the plugin off without uninstalling
+```
 
 ## graphify: Python support
 
