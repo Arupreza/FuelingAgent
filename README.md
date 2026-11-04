@@ -107,34 +107,22 @@ browser-automation tools rather than coding aids.
 
 ### How to ask for a check
 
-`security-guidance` takes no command. It runs on every edit, at the end of every
-turn, and on each commit Claude makes. Findings appear in the session and are
-fixed there.
+Two commands. Nothing else to remember.
 
-The other two are invoked:
+```
+/claude-security      # Anthropic's: whole-repo scan, or your branch, or patches
+/security-audit       # Phoenix's: OWASP Top 10 + ASVS L1 pass
+```
 
-| You want | Call |
-|----------|------|
-| Deep scan of the whole repository | `/claude-security`, or `/claude-security scan the whole repo at high` |
-| Scan only this branch's changes | `/claude-security scan my branch` |
-| Findings turned into verified patch files | `/claude-security suggest patches` |
-| Fast pass over the branch diff | `/security-0day [base-ref]` |
-| OWASP Top 10 and ASVS L1 audit | `/security-audit [scope]`, e.g. `backend` or `A01,A03` |
-| STRIDE/DREAD threat model | `/threatmodel [scope]`, e.g. `src/payments/` |
+Both take a scope if you want one (`/security-audit backend`), and both work
+from plain English, so "scan the whole repo with Claude Security" does the same
+thing as the first.
 
-Plain English reaches the same place: "run a Claude Security scan on the whole
-repo at medium" does what the slash command does.
+`security-guidance` is not in the list because it takes no command: it runs on
+every edit, at the end of every turn, and on each commit Claude makes.
 
-`/claude-security` states its time and token cost and waits for you to accept it.
-It leaves vendored code such as `node_modules` and virtual environments alone
-unless you point it at them.
-
-### Two commands share the name /security-review
-
-Claude Code has a built-in `/security-review`, and phoenix-security-review ships
-a command with the same name, so typing it may not give you the one you expect.
-Use `/security-audit` for Phoenix's whole-repository pass and `/claude-security`
-for Anthropic's, and leave `/security-review` for the built-in branch check.
+Do not use `/security-review` for either. Claude Code has a built-in command of
+that name and Phoenix ships another, so the name is ambiguous.
 
 ### Do not run Phoenix's own install.sh
 
