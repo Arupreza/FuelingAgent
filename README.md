@@ -1,10 +1,10 @@
 # FuelingAgent
 
-### One Script, Eight Tools, Every Machine
+### One Script, Seven Tools, Every Machine
 
 ![Bash](https://img.shields.io/badge/Bash-5.0%2B-4EAA25?logo=gnubash&logoColor=white) ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white) ![Claude Code](https://img.shields.io/badge/Claude%20Code-required-d97757?logo=anthropic&logoColor=white) ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white) ![graphify](https://img.shields.io/badge/graphify-patched-blue) ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
 
-> **The Claude Code toolkit this machine runs on, packaged to reinstall itself:** process skills (superpowers, ponytail, karpathy-skills), a dependency graph CLI patched to actually understand Python, diagramming, docs style, and token-compression tooling — one script, idempotent, no manual re-derivation on a new machine.
+> **The Claude Code toolkit this machine runs on, packaged to reinstall itself:** process skills (superpowers, ponytail, karpathy-skills), a dependency graph CLI patched to actually understand Python, diagramming, and docs style — one script, idempotent, no manual re-derivation on a new machine.
 
 ## What's in here
 
@@ -16,8 +16,7 @@
 | 4 | graphify | CLI + skill | `ChihebBENCHEIKH1/graphify` (skill) + patched CLI (this repo) | Answers "who calls this / what breaks" from a dependency graph instead of grep — **patched here** to actually extract Python (classes, Pydantic DTOs, functions, inheritance, imports), not just Kotlin/TypeScript |
 | 5 | archify | skill | `tt-a1i/archify` | Turns a system, pipeline, or schema into an interactive HTML diagram or one-page explainer |
 | 6 | asd-ste100 | skill | `danyuchn/asd-ste100-skill` | Writes docs in Simplified Technical English: short sentences, one term per thing, active voice |
-| 7 | caveman | plugin + CLI | `JuliusBrussee/caveman` | Compresses agent output/input to cut token cost — **see the caveat below before enabling** |
-| 8 | claude-code-security-review | built-in command + GitHub Action template | `anthropics/claude-code-security-review` | `/security-review` ships with Claude Code already — nothing to install for local use. This repo's CI Action (template bundled here) runs the same AI security review automatically on every PR — **see "Security review" below for per-repo setup** |
+| 7 | claude-code-security-review | built-in command + GitHub Action template | `anthropics/claude-code-security-review` | `/security-review` ships with Claude Code already — nothing to install for local use. This repo's CI Action (template bundled here) runs the same AI security review automatically on every PR — **see "Security review" below for per-repo setup** |
 
 ## Install
 
@@ -37,8 +36,11 @@ each piece.
 
 ### What it actually does, step by step
 
-1. **Plugins** (superpowers, ponytail, andrej-karpathy-skills, caveman) via
+1. **Plugins** (superpowers, ponytail, andrej-karpathy-skills) via
    `claude plugin marketplace add <repo>` + `claude plugin install <name>@<marketplace>`.
+   This step also removes any earlier caveman install (plugin, MCP server,
+   proxy daemon, hooks in `~/.claude/settings.json`). It saves a backup of
+   the settings file as `settings.json.bak-caveman` first.
 2. **Skills from public repos** (archify, asd-ste100, graphify's `SKILL.md`)
    via `npx skills add <repo> -g`. Needs Node ≥22 — falls back to the Node 22
    this script installs in step 3 if your system Node is older (Node 18, the
@@ -47,10 +49,7 @@ each piece.
    wheel bundled in `patches/graphify/` (not fetched fresh from PyPI, so a
    future PyPI release can't silently change what gets patched), then applies
    two diffs on top of it. Also installs Node 22 locally
-   (`~/.local/node22`, doesn't touch system Node) if needed for step 2 or for
-   the optional Caveman CLI below.
-
-**Caveman's CLI itself is not installed automatically** — see the caveat below.
+   (`~/.local/node22`, doesn't touch system Node) if needed for step 2.
 
 ## Why graphify needed patching
 
@@ -120,57 +119,34 @@ Any Python project needs a `pyproject.toml` (even an empty `[project]`
 stanza) to be picked up as a repo — `touch pyproject.toml` with a minimal
 `[project]` table if the project doesn't have one yet.
 
-## Caveman caveat
+## Why caveman was removed
 
-**Default here: skill-only, no CLI, no login.** `install.sh` installs only
-the `caveman` plugin (voice/compression skills run locally as hooks, no
-account, no proxy). This is deliberate, not a missing step — the full CLI
-has two problems serious enough that skill-only is the recommended default:
+Earlier versions installed the `caveman` plugin (and, optionally, its CLI)
+to cut token cost. In practice it raised cost and caused errors:
 
-1. **Breaks Anthropic's own Remote Control.** `cave enable claude` rewrites
-   `ANTHROPIC_BASE_URL` in `~/.claude/settings.json` to point at a local
-   `caveman-proxy` daemon (`127.0.0.1:8787`) instead of `api.anthropic.com`.
-   Remote Control refuses to run against any non-default base URL, full
-   stop — so enabling Caveman's proxy silently disables Remote Control until
-   you remove that override and restart Claude Code.
-2. **Proxy content leaves the machine.** When routing is active, your recent
-   agent messages are sent to Caveman's cloud to pick a model, and on the
-   free tier that content may be used to improve Caveman's own models — you
-   accept this at sign-up. If you work on anything proprietary, know this
-   before enabling it.
+1. **Hooks on every event.** The CLI's `enable claude` wired
+   `caveman-proxy native-hook` into ten hook events in
+   `~/.claude/settings.json` (`SessionStart`, `UserPromptSubmit`,
+   `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PreCompact`,
+   `SubagentStart`, `SubagentStop`, `Stop`, `SessionEnd`). Every tool call
+   ran the proxy.
+2. **Extra context on every turn.** The plugin injected a "caveman mode"
+   instruction block into each user turn, and a long skill text at session
+   start. That text is billed again on every request.
+3. **Content leaves the machine.** With routing active, recent agent
+   messages go to Caveman's cloud to pick a model. On the free tier that
+   content may be used to train Caveman's models.
+4. **Breaks Remote Control.** `enable claude` can point
+   `ANTHROPIC_BASE_URL` at a local proxy (`127.0.0.1:8787`). Remote Control
+   refuses any non-default base URL.
+5. **Truncated tool output.** Its `think.shrink` feature replaced
+   `Read`/`Bash` output with `<<ccr:...>>` markers mid-task. Edits made from
+   that view can be wrong.
 
-It's also genuinely interfered with reliable work in the past: its
-`think.shrink` tool-output compression feature started silently truncating
-`Read`/`Bash` tool output mid-task (visible as a `<<ccr:...>>` marker instead
-of real content), which is actively dangerous for precision work like code
-edits — you can end up editing based on a compressed, wrong view of a file
-without realizing it.
-
-**If you still want the full CLI** (routing, cost dashboard), after running
-`./install.sh`:
-
-```bash
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest setup --install
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest login
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest tools config set think.shrink false
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest enable claude
-```
-
-`login` opens a browser for device authorization — that step needs you, it
-can't be scripted. `think.shrink false` disables the corruption-prone
-feature from the start.
-
-**To get back to skill-only** (restore Remote Control, stop cloud routing):
-
-```bash
-pkill -f caveman-proxy
-PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest disable claude
-```
-
-Then remove any leftover `ANTHROPIC_BASE_URL` line from
-`~/.claude/settings.json`'s `env` block by hand and restart Claude Code — a
-config change like this does not apply retroactively to an already-running
-session.
+Re-running `./install.sh` removes all of it. After that, restart Claude
+Code: a running session keeps the hooks it loaded at start. The CLI's
+binaries stay in `~/.caveman/` but nothing calls them; delete that folder
+by hand if you want the disk space back.
 
 ## Security review
 

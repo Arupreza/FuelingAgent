@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # FuelingAgent -- reinstalls the full Claude Code toolkit this project runs on:
 # process skills, scope discipline, a patched cross-repo code graph, diagramming,
-# docs style, and token-compression tooling. Idempotent: safe to re-run.
+# and docs style. Idempotent: safe to re-run.
 #
 # See README.md for what each piece does and why. Run this once per machine.
 set -euo pipefail
@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "=============================================="
 echo "1/3  Claude Code plugins (superpowers, ponytail,"
-echo "     karpathy-skills, caveman)"
+echo "     karpathy-skills)"
 echo "=============================================="
 if ! command -v claude >/dev/null 2>&1; then
     echo "ERROR: 'claude' CLI not found on PATH. Install Claude Code first:"
@@ -27,7 +27,48 @@ add_plugin() {
 add_plugin "obra/superpowers-marketplace"        "superpowers"            "superpowers-marketplace"
 add_plugin "DietrichGebert/ponytail"              "ponytail"               "ponytail"
 add_plugin "multica-ai/andrej-karpathy-skills"    "andrej-karpathy-skills" "karpathy-skills"
-add_plugin "JuliusBrussee/caveman"                "caveman"                "caveman"
+
+# caveman was dropped from this toolkit (see README "Why caveman was removed").
+# Clean up any earlier install so re-running this script fixes old machines.
+if claude plugin list 2>/dev/null | grep -q "caveman@caveman"; then
+    echo "--> removing caveman plugin (no longer part of this toolkit)"
+    claude plugin uninstall caveman@caveman || true
+fi
+claude plugin marketplace remove caveman >/dev/null 2>&1 || true
+claude mcp remove caveman -s user >/dev/null 2>&1 || true
+pkill -f caveman-proxy 2>/dev/null || true
+SETTINGS="$HOME/.claude/settings.json"
+if [ -f "$SETTINGS" ] && grep -q "caveman" "$SETTINGS"; then
+    echo "--> removing caveman hooks / proxy URL from $SETTINGS"
+    cp "$SETTINGS" "$SETTINGS.bak-caveman"
+    python3 - "$SETTINGS" <<'PY'
+import json, sys
+path = sys.argv[1]
+with open(path) as f:
+    s = json.load(f)
+hooks = s.get("hooks", {})
+for event in list(hooks):
+    groups = []
+    for g in hooks[event]:
+        g["hooks"] = [h for h in g.get("hooks", []) if "caveman" not in h.get("command", "")]
+        if g["hooks"]:
+            groups.append(g)
+    if groups:
+        hooks[event] = groups
+    else:
+        del hooks[event]
+if not hooks:
+    s.pop("hooks", None)
+env = s.get("env", {})
+if "8787" in env.get("ANTHROPIC_BASE_URL", ""):
+    del env["ANTHROPIC_BASE_URL"]
+s.get("enabledPlugins", {}).pop("caveman@caveman", None)
+s.get("extraKnownMarketplaces", {}).pop("caveman", None)
+with open(path, "w") as f:
+    json.dump(s, f, indent=2)
+    f.write("\n")
+PY
+fi
 
 echo ""
 echo "=============================================="
@@ -53,7 +94,7 @@ fi
 echo ""
 echo "=============================================="
 echo "3/3  graphify CLI (patched for Python extraction)"
-echo "     + Node 22 (needed by caveman CLI and step 2)"
+echo "     + Node 22 (needed by step 2)"
 echo "=============================================="
 if ! node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2>/dev/null; then
     if [ ! -x "$HOME/.local/node22/bin/node" ]; then
@@ -63,22 +104,6 @@ if ! node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2
 fi
 bash "$HERE/install-graphify-patch.sh"
 
-echo ""
-echo "=============================================="
-echo "Optional: Caveman CLI (token-compression proxy)"
-echo "=============================================="
-echo "NOT recommended by default and not run automatically -- it creates an"
-echo "account and a local proxy daemon that breaks Anthropic's own Remote"
-echo "Control feature (rewrites ANTHROPIC_BASE_URL) and can interfere with"
-echo "Claude Code's own tool output if misconfigured (see README.md"
-echo "'Caveman caveat' before enabling). The caveman plugin installed above"
-echo "already gives you the voice/compression skills with none of this risk."
-echo "To install the full CLI anyway:"
-echo ""
-echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest setup --install'
-echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest login'
-echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest tools config set think.shrink false'
-echo '  PATH="$HOME/.local/node22/bin:$PATH" npx @caveman-ai/cli@latest enable claude'
 echo ""
 echo "=============================================="
 echo "Optional: PR security review (GitHub Action)"
