@@ -9,9 +9,23 @@
 ![Codex](https://img.shields.io/badge/OpenAI%20Codex-supported-412991?logo=openai&logoColor=white)
 ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
 
-FuelingCodeAgent installs process skills, a dependency-graph CLI, a diagramming
-skill and a documentation-style skill in one step. The script is idempotent:
-you can run it again at any time to update or repair an install.
+A coding agent is only as good as what you have wired into it, and that wiring
+does not travel. Set up each machine by hand and you get a different agent on
+your laptop than on your workstation, and a fresh machine means an afternoon of
+rediscovery. This repository is that setup as code: one command installs the
+same toolkit anywhere, for Claude Code and Codex both, and re-running it
+updates or repairs an install rather than duplicating it.
+
+Two decisions shape what is in here:
+
+- **Curated, not bundled.** Every skill description loads at the start of every
+  session, so a pack of 300 skills costs real tokens before you type anything,
+  and its process skills fight the ones you chose. Each entry below earns its
+  place.
+- **Hooks where it matters.** A skill is advice the agent may or may not act
+  on. Where something must actually happen — reviewing code as it is written,
+  reaching for the dependency graph instead of grep — this installs a hook,
+  which is code that runs.
 
 ## Contents
 
@@ -20,7 +34,7 @@ you can run it again at any time to update or repair an install.
 - [Quick start](#quick-start)
 - [What the installer does](#what-the-installer-does)
 - [Security plugins](#security-plugins)
-  - [How to ask for a check](#how-to-ask-for-a-check)
+  - [Asking for a check](#asking-for-a-check)
 - [graphify hooks](#graphify-hooks)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
@@ -93,153 +107,92 @@ Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
 ## Security plugins
 
-Three plugins cover security, at different depths:
+| Plugin | Runs | Cost |
+|--------|------|------|
+| security-guidance | by itself, on every edit, turn and commit | regex layer free; diff and commit reviews each spend a model call |
+| claude-security | when invoked | one deep multi-agent scan |
+| phoenix-security-review | when invoked | one pass |
 
-| Plugin | When it runs | Cost |
-|--------|--------------|------|
-| security-guidance | by itself, on every edit, turn and commit | regex layer free; the diff and commit reviews each spend a model call |
-| claude-security | when you invoke it | one deep multi-agent scan |
-| phoenix-security-review | when you invoke it | one pass |
+### Asking for a check
 
-Only `phoenix-security-review` of Phoenix's six plugins is installed. The other
-five are reachable through `/plugin menu` if you want them; the toolkit leaves
-them out because `phoenix-sast-rules` needs semgrep or opengrep on `PATH`,
-`phoenix-prd-pipeline` overlaps superpowers' planning skills, and
-`phoenix-cti-search` and `phoenix-docs-research` are threat-intelligence and
+Two commands:
+
+```
+/claude-security      # Anthropic's: whole repo, your branch, or patches
+/security-audit       # Phoenix's: OWASP Top 10 + ASVS L1
+```
+
+Both take an optional scope (`/security-audit backend`) and both answer to plain
+English. `security-guidance` needs no command — it runs on its own.
+
+**Which one.** `/claude-security` asks *are there real vulnerabilities*: it
+verifies each finding and can write the patch. `/security-audit` asks *does this
+meet the standard*: checklist coverage, not exploitability. In doubt, the first.
+
+Do **not** use `/security-review` for either — Claude Code ships a built-in
+command of that name and Phoenix ships another, so it is ambiguous.
+
+### Two traps
+
+- **Never run `phoenix-security-review`'s own `install.sh`.** Its hook preset
+  duplicates security-guidance exactly — a per-edit scanner against the
+  `PostToolUse` check, a session-end review against the `Stop` review — so
+  findings appear twice and the diff review bills twice. Its hooks are opt-in
+  and stay unwired after a plain marketplace install.
+- **The model-backed layers default to Opus**, one call per file-changing turn.
+  `ENABLE_STOP_REVIEW=0` keeps only the free regex check;
+  `SECURITY_GUIDANCE_DISABLE=1` switches the plugin off without uninstalling.
+
+Only one of Phoenix's six plugins is installed. The rest are in `/plugin menu`:
+`phoenix-sast-rules` needs semgrep on `PATH`, `phoenix-prd-pipeline` overlaps
+superpowers' planning skills, and the other two are threat-intelligence and
 browser-automation tools rather than coding aids.
-
-### How to ask for a check
-
-Two commands. Nothing else to remember.
-
-```
-/claude-security      # Anthropic's: whole-repo scan, or your branch, or patches
-/security-audit       # Phoenix's: OWASP Top 10 + ASVS L1 pass
-```
-
-Both take a scope if you want one (`/security-audit backend`), and both work
-from plain English, so "scan the whole repo with Claude Security" does the same
-thing as the first.
-
-**Which one.** They answer different questions. `/claude-security` asks "are
-there real vulnerabilities in this code"; it verifies each finding with a panel
-of agents before reporting it and can write the patches. `/security-audit` asks
-"does this code meet OWASP Top 10 and ASVS L1"; it works through a checklist, so
-it tells you about coverage rather than about exploitability.
-
-| Situation | Use |
-|-----------|-----|
-| Before a release, or on a repository you inherited | `/claude-security` |
-| You want the findings fixed, not just listed | `/claude-security suggest patches` |
-| Someone asks whether the code meets OWASP or ASVS | `/security-audit` |
-| You need a section-by-section report to hand over | `/security-audit` |
-| One file or directory you are unsure about | either, with the path as the scope |
-
-In doubt, run `/claude-security`: a verified finding is worth more than a
-checklist row, and it is the one that can fix what it finds. Reach for
-`/security-audit` when the standard itself is the question.
-
-`security-guidance` is not in the list because it takes no command: it runs on
-every edit, at the end of every turn, and on each commit Claude makes.
-
-Do not use `/security-review` for either. Claude Code has a built-in command of
-that name and Phoenix ships another, so the name is ambiguous.
-
-### Do not run Phoenix's own install.sh
-
-Phoenix ships hook presets that its `install.sh` writes into a project's
-`.claude/settings.json`. Its full preset duplicates security-guidance exactly:
-
-| Layer | security-guidance | Phoenix full preset |
-|-------|-------------------|---------------------|
-| Per-edit scan | `PostToolUse` on Edit/Write | `post-edit-quickscan.sh` |
-| Diff review | `Stop`, end of turn | `session-end-security-0day.sh` |
-
-Two scanners on one edit duplicate the findings in context, and two diff reviews
-bill twice. Phoenix's hooks are opt-in and stay unwired after a plain
-marketplace install, so the fix is to never run that script.
-
-### Turning the cost down
-
-The model-backed layers of security-guidance default to a Claude Opus model, one
-call per file-changing turn:
-
-```bash
-ENABLE_STOP_REVIEW=0        # keep only the free per-edit regex check
-ENABLE_COMMIT_REVIEW=0      # keep the turn review, drop the commit review
-SECURITY_REVIEW_MODEL=...   # or run the turn review on a cheaper model
-SECURITY_GUIDANCE_DISABLE=1 # switch the plugin off without uninstalling
-```
 
 ## graphify hooks
 
-A skill is advice the agent may or may not act on. graphify shipped as a skill,
-so a "who calls this" question often got answered with `grep` instead. Two
-hooks state that the graph exists, so using it is not a decision.
+graphify ships as a skill, so reaching for it was a decision the agent made
+each time — and a "who calls this" question often got answered with `grep`.
+Two hooks state that the graph exists, so using it is not a choice.
 
-| Hook | Event | What it does |
-|------|-------|--------------|
-| `graphify-session.sh` | `SessionStart` | Names the graph and the CLI, and says to query it before Grep. Fires on every new session, so closing one and starting another the next day re-arms it |
-| `graphify-reminder.sh` | `UserPromptSubmit` | Repeats the pointer when a caller, impact or dependency question is actually asked. In a long session the SessionStart line drifts far up the context; this brings it back at the moment it matters |
+| Hook | Event | Does |
+|------|-------|------|
+| `graphify-session.sh` | `SessionStart` | names the graph and the CLI, every new session |
+| `graphify-reminder.sh` | `UserPromptSubmit` | repeats the pointer when a caller, impact or dependency question is actually asked, since in a long session the SessionStart line drifts far up the context |
 
 `graphify-lib.sh` holds the gate both share. Plain shell: no model call, no
-network, no token cost when they stay silent.
+network, nothing when silent.
 
-### They do not refresh the graph, because graphify already does
+They print only when all three hold: inside a git repository, that repository
+holds source files (`node_modules`, `venv`, `site-packages`, `dist`, `build`,
+`__pycache__` pruned), and `graphify root` recognises a workspace. A notes
+folder, a data directory or a docs-only repository costs nothing.
 
-An earlier version rebuilt the graph in the background on a one-hour throttle.
-That was redundant. graphify checks freshness on every query and rebuilds
-itself:
+### It refreshes itself
 
-```
-$ graphify callers _probe_fn
-  graph is stale (1 files changed) -- rebuilding...
-  rebuilt
-```
+graphify checks freshness on every query and rebuilds when source files move,
+so the hooks deliberately do no refreshing of their own. An earlier version ran
+a one-hour timer; it duplicated the tool and rebuilt when nobody was asking.
 
-A timer would duplicate the tool and rebuild even when nobody asks a
-structural question. Freshness was never the gap; reaching for the tool was.
+### Where the graph lives
 
-### Where the graph actually lives
-
-Worth stating, because the obvious guess is wrong. graphify is
-**workspace**-scoped, not per-project: `graphify root` reports the workspace it
-builds, which in a monorepo is the whole tree rather than the sub-project you
-are sitting in, and is not the same as `git rev-parse --show-toplevel`.
+graphify is **workspace**-scoped, not per-project: `graphify root` reports the
+workspace it builds, which in a monorepo is the whole tree, not the sub-project
+you are in, and not `git rev-parse --show-toplevel`.
 
 | Artefact | Path |
 |----------|------|
 | Graph and caches | `~/.cache/graphify/<workspace>-<hash>/` |
 | Readable summary | `<workspace>/ARCHITECTURE_GRAPH.md` |
 
-A `graphify-out/` directory in a project is **not** current graphify output. It
-is left over from an older version, it is never written again, and anything
-reading it answers from a months-old graph. Delete any you find.
-
-### Only software work
-
-Each hook prints nothing unless all three hold:
-
-1. the working directory is inside a git repository,
-2. that repository holds source files — `.py`, `.js`, `.ts`, `.go`, `.rs`,
-   `.java`, `.rb`, `.php`, `.c`, `.cpp`, `.cs` and the rest, with
-   `node_modules`, `venv`, `site-packages`, `dist`, `build` and `__pycache__`
-   pruned so a dependency tree cannot qualify a repository with no code of its
-   own, and
-3. `graphify root` recognises a workspace.
-
-A session in a notes folder, a data directory or a repository of only documents
-therefore costs nothing.
+A `graphify-out/` directory is **not** current output — it is left over from an
+older version, never written again, and anything reading it answers from a
+months-old graph. Delete any you find.
 
 ### Turning them off
 
-```bash
-jq 'del(.hooks.SessionStart, .hooks.UserPromptSubmit)' ~/.claude/settings.json
-```
-
-Or run `/hooks` and remove them there. Step 7 of the installer backs the file
-up to `settings.json.bak-graphify` before it merges, and merges by command
-string, so re-running the installer never adds a second copy.
+`/hooks`, or `jq 'del(.hooks.SessionStart, .hooks.UserPromptSubmit)'` on
+`~/.claude/settings.json`. Step 7 backs up to `settings.json.bak-graphify` and
+merges by command string, so a re-run never adds a second copy.
 
 ## graphify: Python support
 
@@ -253,13 +206,10 @@ Python, it finds FastAPI routes and nothing else. The patches in
 - `EXTENDS` edges from class inheritance;
 - `DEPENDS_ON` edges from resolved imports.
 
-Resolution runs in two passes, after all declarations are indexed, so the
-result does not depend on file order. Names resolve only inside the same
-repository, so unrelated repositories never get false edges. A class never
-resolves its base to itself.
-
-The patches apply to version 0.1.0 only. For this reason the wheel is bundled
-in this repository, not downloaded from PyPI.
+Resolution is two-pass, so the result does not depend on file order, and names
+resolve only within one repository, so unrelated repositories get no false
+edges. The patches apply to 0.1.0 only, which is why the wheel is bundled here
+rather than pulled from PyPI.
 
 ### Usage
 
@@ -271,11 +221,9 @@ graphify impact SomeClassName   # what is affected if it changes
 graphify find SomeName          # locate a symbol by name
 ```
 
-graphify finds the workspace root by itself: it walks up from the current
-directory until it finds two or more sibling project directories
-(`pyproject.toml`, `package.json`, `settings.gradle.kts`, `.git`, ...). A
-Python project needs a `pyproject.toml`; a minimal `[project]` table is
-enough.
+graphify finds the workspace root itself, walking up until it sees two or more
+sibling project directories. A Python project needs a `pyproject.toml`; a
+minimal `[project]` table is enough.
 
 > **Do not** set `GRAPHIFY_ROOT`, `GRAPHIFY_CACHE` or `GRAPHIFY_KB` in your
 > shell profile. A fixed path breaks auto-discovery for every other workspace.
