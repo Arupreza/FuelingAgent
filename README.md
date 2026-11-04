@@ -234,9 +234,14 @@ problem, so read the diff before trusting it:
 git -C ~/.claude/plugins/marketplaces/<name> log <old>..<new>
 ```
 
-If a step fails, the installer now says so and exits non-zero. A failed
-security plugin is not installed whatever the CLAUDE.md section claims —
-confirm with `claude plugin list`.
+If a step fails, the installer says so and exits non-zero, naming each failure.
+Nothing aborts around that summary, so a partial install never looks like a
+complete one. A failed security plugin is not installed whatever the CLAUDE.md
+section claims — confirm with `claude plugin list`.
+
+The Node check requires the version the pinned `skills` package actually needs
+(`>=22.20.0`), not merely Node 22, and reports a `node` that exists but cannot
+run rather than quietly installing a second one.
 
 ## graphify: Python support
 

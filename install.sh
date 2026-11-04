@@ -87,18 +87,55 @@ SKILLS=(
     "danyuchn/asd-ste100-skill"
 )
 
-section "1/7  Node.js 22 (needed by the skills installer)"
+section "1/7  Node.js (needed by the skills installer)"
+# The test used to be `major >= 22` with stderr discarded, which failed open
+# three ways. It passed Node 22.14, which cannot run the pinned skills@1.7.6
+# (engines: >=22.20.0), so the real cause surfaced later as an unexplained
+# skills failure. It could not tell "no Node" from "Node present but broken",
+# because `command not found` and a segfault both land in the same discarded
+# stderr. And a failure of the installer below aborted the whole run through
+# `set -e`, skipping the summary that says what is missing.
+NODE_MIN="22.20.0"          # keep in step with SKILLS_PKG's engines field
 NODE_BIN_DIR=""
-if node -e 'process.exit(process.versions.node.split(".")[0] >= 22 ? 0 : 1)' 2>/dev/null; then
-    echo "--> system Node $(node --version) is new enough"
+NODE_OK=0
+if ! command -v node >/dev/null 2>&1; then
+    echo "--> no system Node found"
 else
-    if [ ! -x "$HOME/.local/node22/bin/node" ]; then
-        echo "--> installing Node 22 into ~/.local/node22 (system Node is not changed)"
-        bash "$HERE/scripts/install-node22.sh"
+    # `|| true` keeps the captured stderr: assigning on failure would discard
+    # the very message this branch exists to show.
+    NODE_HAVE="$(node --version 2>&1 || true)"
+    if [ -z "$NODE_HAVE" ] || [ "${NODE_HAVE#v}" = "$NODE_HAVE" ]; then
+        # `node` exists but will not report a version: a broken install, a shim
+        # that errors, a wrapper needing setup. Say so -- silently installing a
+        # second Node leaves the broken one to break something else later.
+        echo "--> WARNING: 'node' is on PATH but did not report a version:"
+        echo "             ${NODE_HAVE:-(no output)}"
+        echo "             Treating it as unusable and installing a private Node."
+    elif node -e "const v=process.versions.node.split('.').map(Number);
+                  const m='$NODE_MIN'.split('.').map(Number);
+                  process.exit((v[0]>m[0]||(v[0]===m[0]&&(v[1]>m[1]||(v[1]===m[1]&&v[2]>=m[2]))))?0:1)" 2>/dev/null; then
+        echo "--> system Node $NODE_HAVE is >= $NODE_MIN"
+        NODE_OK=1
+    else
+        echo "--> system Node $NODE_HAVE is older than $NODE_MIN (needed by $SKILLS_PKG)"
     fi
-    NODE_BIN_DIR="$HOME/.local/node22/bin"
-    echo "--> using $NODE_BIN_DIR/node"
 fi
+if [ "$NODE_OK" -eq 0 ]; then
+    if [ ! -x "$HOME/.local/node22/bin/node" ]; then
+        echo "--> installing Node into ~/.local/node22 (system Node is not changed)"
+        try "Node install (scripts/install-node22.sh)" bash "$HERE/scripts/install-node22.sh"
+    fi
+    if [ -x "$HOME/.local/node22/bin/node" ]; then
+        NODE_BIN_DIR="$HOME/.local/node22/bin"
+        echo "--> using $NODE_BIN_DIR/node"
+    else
+        # Fail closed: skip the steps that need it rather than run them and
+        # emit a confusing npx error for each.
+        note_failure "Node >= $NODE_MIN unavailable -- skills steps skipped"
+        SKIP_SKILLS=1
+    fi
+fi
+SKIP_SKILLS="${SKIP_SKILLS:-0}"
 run_npx() {
     if [ -n "$NODE_BIN_DIR" ]; then
         PATH="$NODE_BIN_DIR:$PATH" npx "$@"
@@ -170,7 +207,11 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
 fi
 
 section "3/7  Skills (archify, graphify, asd-ste100)"
+if [ "$SKIP_SKILLS" -eq 1 ]; then
+    echo "--> skipped: no Node >= $NODE_MIN (see the summary at the end)"
+fi
 for repo in "${SKILLS[@]}"; do
+    [ "$SKIP_SKILLS" -eq 1 ] && break
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $repo"
         try "claude skill $repo" run_npx -y "$SKILLS_PKG" add "$repo" -g -a claude-code -y
@@ -182,7 +223,11 @@ for repo in "${SKILLS[@]}"; do
 done
 
 section "4/7  graphify CLI (patched for Python extraction)"
-bash "$HERE/install-graphify-patch.sh"
+# Recorded rather than fatal: an abort here would skip steps 5-7 AND the
+# summary, leaving a partial install with nothing saying so. The graphify hooks
+# in step 7 check `command -v graphify` and stay silent without it, so a
+# failure here degrades rather than breaks.
+try "graphify CLI (install-graphify-patch.sh)" bash "$HERE/install-graphify-patch.sh"
 
 section "5/7  Remove caveman (no longer part of this toolkit)"
 # Earlier versions shipped caveman. Its hooks ran on every agent event and
