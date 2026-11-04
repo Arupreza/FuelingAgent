@@ -13,9 +13,9 @@ For a check the user asks for, there are two commands and no others:
   repository, or this branch, or findings turned into verified patches. Use it
   when the question is "is this codebase safe", since the built-in
   `/security-review` only covers the current branch's diff.
-- `/phoenix-security-review:security-audit [scope]` — Phoenix's OWASP Top 10
-  and ASVS L1 pass. Plugin commands are namespaced, so the bare
-  `/security-audit` does not resolve and does not appear in completion.
+- `/security-audit [scope]` — Phoenix's OWASP Top 10 and ASVS L1 pass. This is
+  a user-command shim; the plugin's own namespaced name is
+  `/phoenix-security-review:security-audit`, which the shim hands off to.
 
 Pick by the question being asked: Claude Security for "are there real
 vulnerabilities here", since it verifies each finding and can patch it;

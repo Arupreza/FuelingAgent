@@ -193,7 +193,7 @@ fi
 pkill -f caveman-proxy 2>/dev/null || true
 echo "--> done"
 
-section "6/7  Auto-calling for the on-demand security skills"
+section "6/7  Auto-calling, and the /security-audit shim"
 # security-guidance needs nothing: it is hook-driven and runs by itself. The
 # other two are invoked, so the agent has to know when to reach for them --
 # that is what this block puts in CLAUDE.md. Guarded by a marker so re-running
@@ -209,6 +209,16 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
         cat "$HERE/templates/claude-md-security.md" >> "$CMD_FILE"
         echo "--> appended the security section to $CMD_FILE"
     fi
+fi
+
+# Plugin commands are namespaced, so Phoenix's assessment is only reachable as
+# /phoenix-security-review:security-audit -- a name that does not show up when
+# you type /security-audit and is easy to get wrong. A user command is not
+# namespaced, so this shim gives it the short name and hands off to the plugin.
+if [ "$WANT_CLAUDE" -eq 1 ]; then
+    mkdir -p "$HOME/.claude/commands"
+    install -m 644 "$HERE/commands/security-audit.md" "$HOME/.claude/commands/security-audit.md"
+    echo "--> installed /security-audit (shim for phoenix-security-review)"
 fi
 
 section "7/7  graphify hooks (auto-refresh and auto-announce)"

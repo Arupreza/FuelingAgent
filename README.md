@@ -93,7 +93,7 @@ After the install:
 | 4 | graphify CLI | Installs the pinned `graphify-cli==0.1.0` wheel into `~/.venvs/graphify`, applies the Python patches, links `~/.local/bin/graphify` | shared |
 | 5 | Cleanup | Removes caveman, which earlier versions of this toolkit installed. Backs up `~/.claude/settings.json` to `settings.json.bak-caveman` before it edits the file | same |
 
-| 6 | Auto-calling | Appends a "Security during development" section to `~/.claude/CLAUDE.md` so the on-demand security skills get reached for without being asked. Skipped if the section is already there; backs up to `CLAUDE.md.bak-security` | n/a |
+| 6 | Auto-calling | Appends a "Security during development" section to `~/.claude/CLAUDE.md` so the on-demand security skills get reached for without being asked, and installs the `/security-audit` command shim. Skipped if the section is already there; backs up to `CLAUDE.md.bak-security` | n/a |
 
 | 7 | graphify hooks | Installs two hooks to `~/.claude/hooks/` and merges them into `settings.json` so the code graph refreshes and announces itself every session. Needs `jq`; backs up to `settings.json.bak-graphify` | n/a |
 
@@ -109,16 +109,17 @@ Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
 ### Asking for a check
 
-Plugin commands are namespaced, so the bare name does not appear in completion:
-
 ```
-/phoenix-security-review:security-audit   # OWASP Top 10 + ASVS L1
-/claude-security                          # whole repo, your branch, or patches
+/security-audit        # OWASP Top 10 + ASVS L1
+/claude-security       # whole repo, your branch, or patches
 ```
 
-The first is a plugin command and needs the `plugin:command` prefix. The second
-is a skill rather than a command, so it is reached by its own name. Type `/` and
-let completion confirm — that is faster than remembering either.
+`/security-audit` is a shim this repo installs to `~/.claude/commands/`. Plugin
+commands are namespaced, so Phoenix's own name is
+`/phoenix-security-review:security-audit`, which never appears when you type
+`/security-audit`; the shim takes the short name and hands straight off to the
+plugin's assessment skill. `/claude-security` is a skill rather than a command,
+so it answers to its own name already.
 
 Both take an optional scope (`... security-audit backend`) and both answer to
 plain English, so "run a Claude Security scan on the whole repo" works too.
@@ -305,13 +306,21 @@ FuelingCodeAgent/
 ├── install.sh                    # entry point (Claude Code and Codex)
 ├── install-graphify-patch.sh     # graphify CLI install and patch, called by install.sh
 ├── scripts/
-│   └── install-node22.sh         # Node 22 install, checksum-verified against nodejs.org
+│   └── install-node22.sh         # Node 22 install, against a checksum pinned in the script
+├── hooks/
+│   ├── graphify-lib.sh           # shared gate: code repo, graphify workspace
+│   ├── graphify-session.sh       # SessionStart: names the graph
+│   └── graphify-reminder.sh      # UserPromptSubmit: names it again when asked
+├── commands/
+│   └── security-audit.md         # /security-audit, a shim for the namespaced plugin command
 ├── patches/graphify/
 │   ├── graphify_cli-0.1.0-py3-none-any.whl   # pinned base for the patches
 │   ├── extract.py.diff           # Python declaration and relationship extraction
 │   └── workspace.py.diff         # deterministic file-walk order
-└── templates/github-actions/
-    └── security-review.yml       # optional per-repository PR security review
+└── templates/
+    ├── claude-md-security.md     # appended to ~/.claude/CLAUDE.md by step 6
+    └── github-actions/
+        └── security-review.yml   # optional per-repository PR security review
 ```
 
 ## License
