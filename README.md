@@ -1,4 +1,4 @@
-# FuelingAgent
+# FuelingCodeAgent
 
 **One installer that sets up the same agent toolkit for Claude Code and OpenAI Codex.**
 
@@ -9,7 +9,7 @@
 ![Codex](https://img.shields.io/badge/OpenAI%20Codex-supported-412991?logo=openai&logoColor=white)
 ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
 
-FuelingAgent installs process skills, a dependency-graph CLI, a diagramming
+FuelingCodeAgent installs process skills, a dependency-graph CLI, a diagramming
 skill and a documentation-style skill in one step. The script is idempotent:
 you can run it again at any time to update or repair an install.
 
@@ -50,8 +50,8 @@ you can run it again at any time to update or repair an install.
 ## Quick start
 
 ```bash
-git clone https://github.com/Arupreza/FuelingAgent.git
-cd FuelingAgent
+git clone https://github.com/Arupreza/FuelingCodeAgent.git
+cd FuelingCodeAgent
 ./install.sh
 ```
 
@@ -129,7 +129,7 @@ a repository:
 
 ```bash
 mkdir -p .github/workflows
-cp <path-to-FuelingAgent>/templates/github-actions/security-review.yml .github/workflows/
+cp <path-to-FuelingCodeAgent>/templates/github-actions/security-review.yml .github/workflows/
 ```
 
 Then add a `CLAUDE_API_KEY` repository secret (Settings → Secrets and
@@ -162,7 +162,7 @@ codex plugin remove <name>@<marketplace>       # Codex
 ## Repository layout
 
 ```
-FuelingAgent/
+FuelingCodeAgent/
 ├── install.sh                    # entry point (Claude Code and Codex)
 ├── install-graphify-patch.sh     # graphify CLI install and patch, called by install.sh
 ├── scripts/

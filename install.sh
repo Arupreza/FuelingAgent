@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# FuelingAgent installer for Claude Code and OpenAI Codex.
+# FuelingCodeAgent installer for Claude Code and OpenAI Codex.
 # Idempotent: safe to re-run. See README.md for details.
 #
 # Usage: ./install.sh [--claude] [--codex]
@@ -39,7 +39,7 @@ done
 TARGETS=()
 [ "$WANT_CLAUDE" -eq 1 ] && TARGETS+=("Claude Code")
 [ "$WANT_CODEX" -eq 1 ] && TARGETS+=("Codex")
-echo "FuelingAgent: installing for ${TARGETS[*]}"
+echo "FuelingCodeAgent: installing for ${TARGETS[*]}"
 
 section() {
     echo ""
