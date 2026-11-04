@@ -108,22 +108,27 @@ Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
 ### Asking for a check
 
-Two commands:
+Plugin commands are namespaced, so the bare name does not appear in completion:
 
 ```
-/claude-security      # Anthropic's: whole repo, your branch, or patches
-/security-audit       # Phoenix's: OWASP Top 10 + ASVS L1
+/phoenix-security-review:security-audit   # OWASP Top 10 + ASVS L1
+/claude-security                          # whole repo, your branch, or patches
 ```
 
-Both take an optional scope (`/security-audit backend`) and both answer to plain
-English. `security-guidance` needs no command — it runs on its own.
+The first is a plugin command and needs the `plugin:command` prefix. The second
+is a skill rather than a command, so it is reached by its own name. Type `/` and
+let completion confirm — that is faster than remembering either.
+
+Both take an optional scope (`... security-audit backend`) and both answer to
+plain English, so "run a Claude Security scan on the whole repo" works too.
+`security-guidance` needs no command: it runs on its own.
 
 **Which one.** `/claude-security` asks *are there real vulnerabilities*: it
-verifies each finding and can write the patch. `/security-audit` asks *does this
+verifies each finding and can write the patch. `security-audit` asks *does this
 meet the standard*: checklist coverage, not exploitability. In doubt, the first.
 
-Do **not** use `/security-review` for either — Claude Code ships a built-in
-command of that name and Phoenix ships another, so it is ambiguous.
+Do **not** use `/security-review`. Claude Code ships a built-in command of that
+name and Phoenix ships another, so it is ambiguous.
 
 ### Two traps
 

@@ -9,16 +9,18 @@ review when Claude commits. Fix what it reports in the same session.
 
 For a check the user asks for, there are two commands and no others:
 
-- `/claude-security` — Anthropic's. The whole repository, or this branch, or
-  findings turned into verified patches. Use it when the question is "is this
-  codebase safe", since the built-in `/security-review` only covers the current
-  branch's diff.
-- `/security-audit [scope]` — Phoenix's OWASP Top 10 and ASVS L1 pass.
+- `/claude-security` — Anthropic's, a skill rather than a command. The whole
+  repository, or this branch, or findings turned into verified patches. Use it
+  when the question is "is this codebase safe", since the built-in
+  `/security-review` only covers the current branch's diff.
+- `/phoenix-security-review:security-audit [scope]` — Phoenix's OWASP Top 10
+  and ASVS L1 pass. Plugin commands are namespaced, so the bare
+  `/security-audit` does not resolve and does not appear in completion.
 
-Pick between them by the question being asked: `/claude-security` for "are there
-real vulnerabilities here", since it verifies each finding and can patch it;
-`/security-audit` for "does this meet OWASP or ASVS", since it reports checklist
-coverage. When it is not clear, use `/claude-security`.
+Pick by the question being asked: Claude Security for "are there real
+vulnerabilities here", since it verifies each finding and can patch it;
+security-audit for "does this meet OWASP or ASVS", since it reports checklist
+coverage. When it is not clear, use Claude Security.
 
 Never reach for `/security-review` to call either one: Claude Code has a
 built-in command of that name and Phoenix ships another, so it is ambiguous.
