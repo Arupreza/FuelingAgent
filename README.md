@@ -12,8 +12,8 @@
 One command installs an all-in-one toolkit for coding work:
 
 - **development** — process skills for planning, TDD, debugging and review;
-- **security** — review of code as it is written, plus two commands for a
-  whole-repo audit;
+- **security** — two commands for a whole-repo audit, run when you ask; no
+  model call fires on its own;
 - **a dependency graph** — a cross-repo graph that answers who-calls-what and
   what-a-change-breaks, and refreshes itself;
 - **a CLAUDE.md per project** — written on the first session that changes
@@ -48,7 +48,6 @@ or repair an install; it never duplicates one.
 | graphify | CLI + skill | [`ChihebBENCHEIKH1/graphify`](https://github.com/ChihebBENCHEIKH1/graphify) + patch in this repo | Answers "who calls this" and "what breaks" from a dependency graph; patched to extract Python | ✓ | ✓ |
 | archify | skill | [`tt-a1i/archify`](https://github.com/tt-a1i/archify) | Interactive HTML diagrams and one-page explainers | ✓ | ✓ |
 | asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ |
-| security-guidance | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Reviews code as it is written: regex on every edit, model review of each turn's diff, agentic review on commit. Runs by itself | ✓ | — |
 | claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — |
 | phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | — |
 | security review | command + GitHub Action | [`anthropics/claude-code-security-review`](https://github.com/anthropics/claude-code-security-review) | AI security review of changes and pull requests | ✓ | see [below](#security-review) |
@@ -103,11 +102,32 @@ Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
 ## Security plugins
 
+**Nothing here runs by itself.** Both plugins are invoked, so until you ask for
+a check they cost nothing beyond their description in the session prompt — about
+1.5k tokens for the two together.
+
 | Plugin | Runs | Cost |
 |--------|------|------|
-| security-guidance | by itself, on every edit, turn and commit | regex layer free; diff and commit reviews each spend a model call |
 | claude-security | when invoked | one deep multi-agent scan |
 | phoenix-security-review | when invoked | one pass |
+
+That is a deliberate change. This toolkit shipped Anthropic's
+`security-guidance` for a while, which reviews code as it is written and needs
+no asking. The reviews were good. The price was not: it launched an agentic
+reviewer on **every `git commit` and every `git push`** — a full Claude Code
+subprocess on Opus, up to 18 turns, re-reading the repository, default ceiling
+20 reviews an hour, and a push re-reviewing the whole commit range. Measured on
+one real session: five launches in sixteen minutes from three commits and a
+push, none of it visible in the transcript. Step 5 of the installer now removes
+it, along with its ~380 MB state directory.
+
+If you want it back, it is one command — `claude plugin install
+security-guidance@claude-plugins-official` — and these are the knobs worth
+knowing: `ENABLE_COMMIT_REVIEW=0` drops the agentic pass, `SG_AGENTIC_MODEL`
+and `SECURITY_REVIEW_MODEL` move it off Opus, `MAX_COMMIT_REVIEWS_PER_SESSION`
+caps it, `SG_PUSH_SWEEP=0` stops push re-reviewing, and
+`SECURITY_GUIDANCE_DISABLE=1` switches the whole plugin off without
+uninstalling.
 
 ### Asking for a check
 
@@ -125,7 +145,9 @@ so it answers to its own name already.
 
 Both take an optional scope (`... security-audit backend`) and both answer to
 plain English, so "run a Claude Security scan on the whole repo" works too.
-`security-guidance` needs no command: it runs on its own.
+
+Run one before a release, before handing a repository over, and after any
+change to authentication, input handling or anything touching a secret.
 
 **Which one.** `/claude-security` asks *are there real vulnerabilities*: it
 verifies each finding and can write the patch. `security-audit` asks *does this
@@ -136,14 +158,15 @@ name and Phoenix ships another, so it is ambiguous.
 
 ### Two traps
 
-- **Never run `phoenix-security-review`'s own `install.sh`.** Its hook preset
-  duplicates security-guidance exactly — a per-edit scanner against the
-  `PostToolUse` check, a session-end review against the `Stop` review — so
-  findings appear twice and the diff review bills twice. Its hooks are opt-in
-  and stay unwired after a plain marketplace install.
-- **The model-backed layers default to Opus**, one call per file-changing turn.
-  `ENABLE_STOP_REVIEW=0` keeps only the free regex check;
-  `SECURITY_GUIDANCE_DISABLE=1` switches the plugin off without uninstalling.
+- **Never run `phoenix-security-review`'s own `install.sh`.** Its preset wires
+  a scanner into `PostToolUse` and a review into `Stop` — a model call per
+  file-changing turn, which is the cost this toolkit dropped
+  `security-guidance` to avoid. Its hooks are opt-in and stay unwired after a
+  plain marketplace install, which is how it is installed here.
+- **A security pass nobody reads is pure cost.** The reason these are
+  on-demand is not that automatic review is worthless; it is that findings
+  arriving mid-task get acknowledged and forgotten. Run a pass at a point
+  where you will act on it.
 
 Only one of Phoenix's six plugins is installed. The rest are in `/plugin menu`:
 `phoenix-sast-rules` needs semgrep on `PATH`, `phoenix-prd-pipeline` overlaps
@@ -272,7 +295,7 @@ Worth knowing before you run the installer. What is pinned:
 | Node tarball | yes, SHA-256 in `scripts/install-node22.sh` |
 | `skills` npm package | yes, `skills@1.7.6` |
 | GitHub Action template | yes, commit SHAs |
-| the 7 plugin and skill repos | **no** |
+| the plugin and skill repos | **no** |
 
 `claude plugin marketplace add` takes a repository's default branch and has no
 flag to pin a ref, so every run installs whatever is on those branches now, and

@@ -59,6 +59,12 @@ payload to them, as the comments in `hooks/` describe.
   first session. Extracted the shared "is this software work" gate into
   `gf_code_repo`, and replaced step 7's inline jq merge with an idempotent
   `add_hook`.
+- 2026-11-05: removed Anthropic's `security-guidance` from the toolkit and
+  added its removal to step 5. It launched an agentic Opus reviewer on every
+  commit and push -- five subprocesses in sixteen minutes on a real session,
+  none of it in the transcript. Security here is on demand only now. Measure
+  before blaming context: the loaded descriptions of all six plugins came to
+  ~3.7k tokens, so they were never the cost.
 - 2026-11-05: the journal hooks now ask for direction, not only history -- a
   '## How things are done here' section holding each repeatable task as an
   instruction, because a dated log line does not say which command, inputs or

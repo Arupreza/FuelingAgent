@@ -65,15 +65,16 @@ PLUGINS=(
     "DietrichGebert/ponytail|ponytail|ponytail"
     "multica-ai/andrej-karpathy-skills|andrej-karpathy-skills|karpathy-skills"
 )
-# Claude Code only. security-guidance is built on Claude Code hooks and
-# claude-security is an Anthropic plugin; neither has a Codex equivalent.
+# Claude Code only: claude-security is an Anthropic plugin and Phoenix's is
+# built on Claude Code skills, and neither has a Codex equivalent.
+# Both of these are ON DEMAND: they cost nothing until a command asks for a
+# check. security-guidance is deliberately not here -- see step 5.
 CLAUDE_ONLY_PLUGINS=(
-    "anthropics/claude-plugins-official|security-guidance|claude-plugins-official"
     "anthropics/claude-plugins-official|claude-security|claude-plugins-official"
     # Only phoenix-security-review of Phoenix's six plugins. Its hooks are
-    # opt-in and stay unwired unless its own install.sh is run -- do not run it:
-    # its full preset duplicates security-guidance's per-edit scan and diff
-    # review, which doubles the model cost and the findings in context.
+    # opt-in and stay unwired unless its own install.sh is run -- do not run
+    # it: its preset puts a scan on every edit and a review on every turn,
+    # which is the per-turn model cost this toolkit now refuses to carry.
     "Security-Phoenix-demo/security-skills-claude-code|phoenix-security-review|phoenix-security"
 )
 # Pinned: `npx -y skills` takes the newest package every run, so a release can
@@ -229,10 +230,28 @@ section "4/7  graphify CLI (patched for Python extraction)"
 # failure here degrades rather than breaks.
 try "graphify CLI (install-graphify-patch.sh)" bash "$HERE/install-graphify-patch.sh"
 
-section "5/7  Remove caveman (no longer part of this toolkit)"
-# Earlier versions shipped caveman. Its hooks ran on every agent event and
-# raised token cost, so remove any old install.
+section "5/7  Remove caveman and security-guidance (not part of this toolkit)"
+# Both were dropped for the same reason: model calls on every turn.
+#
+# caveman's hooks ran on every agent event.
+#
+# security-guidance (Anthropic) launched an agentic reviewer on every git
+# commit and every git push -- a full Claude Code subprocess on Opus, up to 18
+# turns, re-reading the repository, with the default ceiling at 20 reviews an
+# hour and a push re-reviewing the whole commit range. Measured on a real
+# session: five launches in sixteen minutes across three commits and one push,
+# none of it visible in the transcript. The review itself was good; the price
+# of having it on every commit was not. Security here is on demand instead --
+# /claude-security and /security-audit, run when you choose, which is also
+# when the findings are worth reading.
 if [ "$WANT_CLAUDE" -eq 1 ]; then
+    if claude plugin list 2>/dev/null | grep -q "security-guidance"; then
+        claude plugin uninstall security-guidance@claude-plugins-official || true
+    fi
+    # Its state directory holds a bootstrapped agent SDK venv -- ~380 MB.
+    rm -rf "$HOME/.claude/security" \
+           "$HOME/.claude/plugins/cache/claude-plugins-official/security-guidance"
+
     if claude plugin list 2>/dev/null | grep -q "caveman@caveman"; then
         claude plugin uninstall caveman@caveman || true
     fi
@@ -286,10 +305,10 @@ pkill -f caveman-proxy 2>/dev/null || true
 echo "--> done"
 
 section "6/7  Auto-calling, and the /security-audit shim"
-# security-guidance needs nothing: it is hook-driven and runs by itself. The
-# other two are invoked, so the agent has to know when to reach for them --
-# that is what this block puts in CLAUDE.md. Guarded by a marker so re-running
-# the installer does not append a second copy.
+# Both security plugins are invoked rather than automatic, so the agent has to
+# know which one answers which question -- that is what this block puts in
+# CLAUDE.md. Guarded by a marker so re-running the installer does not append a
+# second copy.
 if [ "$WANT_CLAUDE" -eq 1 ]; then
     CMD_FILE="$HOME/.claude/CLAUDE.md"
     MARKER="# Security during development"

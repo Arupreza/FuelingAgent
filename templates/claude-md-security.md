@@ -1,13 +1,11 @@
-
 # Security during development
 
-Installed at user scope, so these apply in every repository.
+Installed at user scope, so these apply in every repository. **Nothing runs by
+itself.** No scan on edit, no review on commit, no model call the user did not
+ask for. Security here is a check the user runs, which is also when the
+findings are worth reading.
 
-**security-guidance** (Anthropic) runs by itself, nothing to invoke: a free
-regex check on every edit, a model review of each turn's diff, and a deeper
-review when Claude commits. Fix what it reports in the same session.
-
-For a check the user asks for, there are two commands and no others:
+There are two commands and no others:
 
 - `/claude-security` — Anthropic's, a skill rather than a command. The whole
   repository, or this branch, or findings turned into verified patches. Use it
@@ -25,7 +23,14 @@ coverage. When it is not clear, use Claude Security.
 Never reach for `/security-review` to call either one: Claude Code has a
 built-in command of that name and Phoenix ships another, so it is ambiguous.
 
+Run one before a release, before handing a repository to someone else, and
+after any change to authentication, input handling or anything that touches a
+secret. Not on every commit — that was tried, as a plugin that launched an
+agentic reviewer on each one, and the cost was out of all proportion to a pass
+that nobody reads mid-task.
+
 Repository-specific rules go in `.claude/claude-security-guidance.md` in plain
 language, and literal patterns in `.claude/security-patterns.yaml`. Both are
 additive and read automatically. Do not run phoenix-security-review's own
-`install.sh`: its hook preset duplicates security-guidance.
+`install.sh`: its preset puts a scan on every edit and a review on every turn,
+which is exactly what this toolkit refuses to carry.
