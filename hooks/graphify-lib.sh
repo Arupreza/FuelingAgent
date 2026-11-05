@@ -38,6 +38,52 @@ gf_code_repo() {
     printf '%s' "$root"
 }
 
+# gf_project_dir -- print the directory that owns the CLAUDE.md for this work.
+#
+# NOT the git root. A monorepo holds several projects in one repository, and
+# each wants its own CLAUDE.md: Rezaworks/ is a single git repository whose
+# sub-directories (DeNovo-Design-AI, Function-Engine-AI, ...) are the actual
+# projects, and one CLAUDE.md at the top would describe none of them.
+#
+# So walk up from the current directory to the git root and take the first
+# directory that already has a CLAUDE.md, or failing that looks like a project
+# root. Claude Code reads CLAUDE.md from the working directory upwards, so a
+# file placed here is loaded automatically by any session working in or under
+# it. If nothing matches, the git root is the fallback.
+#
+# shortcut: keyed on the working directory, not on the file that was edited,
+# so a session anchored in one project that edits another logs to the first.
+# Split it per edited path if that becomes common.
+gf_project_dir() {
+    local root dir
+    root="$(gf_code_repo)" || return 1
+    dir="$(pwd -P 2>/dev/null)" || return 1
+    case "$dir" in "$root"|"$root"/*) ;; *) printf '%s' "$root"; return 0 ;; esac
+    while :; do
+        if [ -f "$dir/CLAUDE.md" ] || [ -f "$dir/pyproject.toml" ] \
+           || [ -f "$dir/package.json" ] || [ -f "$dir/Cargo.toml" ] \
+           || [ -f "$dir/go.mod" ] || [ -f "$dir/setup.py" ] \
+           || [ -f "$dir/pom.xml" ] || [ -f "$dir/build.gradle" ] \
+           || [ -f "$dir/Gemfile" ] || [ -f "$dir/composer.json" ]; then
+            printf '%s' "$dir"; return 0
+        fi
+        [ "$dir" = "$root" ] && break
+        dir="$(dirname "$dir")"
+    done
+    printf '%s' "$root"
+}
+
+# gf_stamp_file -- the per-session, per-project edit stamp, inside .git so it
+# is never committed and never shows in git status. The project directory is
+# folded into the name, so two projects of one monorepo do not trigger for
+# each other. cksum is POSIX, unlike md5sum.
+gf_stamp_file() {
+    local proj="$1" sid="$2" gitdir key
+    gitdir="$(git rev-parse --absolute-git-dir 2>/dev/null)" || return 1
+    key="$(printf '%s' "$proj" | cksum | tr -cd '0-9')"
+    printf '%s/fuelingcodeagent/edited-%s-%s' "$gitdir" "$sid" "$key"
+}
+
 # gf_session_id -- print the session id from a hook payload given on stdin.
 gf_session_id() {
     sed -n 's/.*"session_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1

@@ -322,10 +322,11 @@ section "7/7  session hooks (graphify + CLAUDE.md work log)"
 # structural question is asked. They refresh nothing: graphify checks freshness
 # on each query and rebuilds itself.
 #
-# journal-stamp.sh and journal-stop.sh keep a CLAUDE.md in every code
-# repository and keep its work log current: the first records that the session
-# edited a file, the second blocks the end of the turn once, asking for the
-# log entry while the work is still in context.
+# journal-stamp.sh and journal-stop.sh keep a CLAUDE.md in every project and
+# keep its work log current: the first records that the session edited a file,
+# the second blocks the end of the turn once, asking for the log entry while
+# the work is still in context. Project, not git root -- a monorepo holds
+# several, and one file at the top would describe none of them.
 #
 # All four gate on being a git repository that holds source files, so sessions
 # in notes, data or home directories pay nothing.

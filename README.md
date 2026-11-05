@@ -16,7 +16,7 @@ One command installs an all-in-one toolkit for coding work:
   whole-repo audit;
 - **a dependency graph** — a cross-repo graph that answers who-calls-what and
   what-a-change-breaks, and refreshes itself;
-- **a CLAUDE.md per repository** — written on the first session that changes
+- **a CLAUDE.md per project** — written on the first session that changes
   code, and its work log appended at the end of every session after that.
 
 Works for Claude Code and OpenAI Codex. Re-run the installer any time to update
@@ -160,7 +160,7 @@ four cover the two things that kept not happening.
 |------|-------|------|
 | `graphify-session.sh` | `SessionStart` | names the graph and the CLI, every new session |
 | `graphify-reminder.sh` | `UserPromptSubmit` | repeats the pointer when a caller, impact or dependency question is actually asked, since in a long session the SessionStart line drifts far up the context |
-| `journal-stamp.sh` | `PostToolUse` (`Write`, `Edit`) | records that this session changed a file in this repository |
+| `journal-stamp.sh` | `PostToolUse` (`Write`, `Edit`) | records that this session changed a file in this project |
 | `journal-stop.sh` | `Stop` | if it did, holds the turn open once to get `CLAUDE.md` written or its work log appended |
 
 `graphify-lib.sh` holds the gate all four share. Plain shell: no model call, no
@@ -195,10 +195,20 @@ months-old graph. Delete any you find.
 
 ### The CLAUDE.md work log
 
-Every repository you write code in gets a `CLAUDE.md`: what the project is, how
+Every project you write code in gets a `CLAUDE.md`: what the project is, how
 to run and test it, the conventions a newcomer would get wrong, and a
 `## Work log` section. The next session reads it before anything else, because
-Claude Code loads it automatically.
+Claude Code loads `CLAUDE.md` from the working directory upwards on its own.
+
+**Project, not git root.** A monorepo holds several projects in one repository,
+and one file at the top would describe none of them — `Rezaworks/` is a single
+repository whose sub-directories are the real projects. So the hooks walk up
+from the working directory to the git root and take the first directory that
+already has a `CLAUDE.md`, or else looks like a project root (`pyproject.toml`,
+`package.json`, `Cargo.toml`, `go.mod`, `setup.py`, `pom.xml`, `build.gradle`,
+`Gemfile`, `composer.json`). The git root is the fallback. Sibling projects in
+one repository never trigger for each other: the stamp name carries the project
+directory.
 
 Keeping it current is the part a rule cannot do. The end of a session is when
 the context is fullest and a written instruction is most likely to be dropped —
@@ -211,11 +221,17 @@ It is deliberately narrow:
   repository can sit dirty for months. The signal is an edit made in *this*
   session, stamped by `journal-stamp.sh` into `.git/fuelingcodeagent/` — inside
   `.git`, so it is never committed and never shows in `git status`.
+- **Only for software work.** Same gate as the graphify hooks: a git
+  repository that holds source files. A notes or data directory gets nothing.
 - **Once per session, and it cannot loop.** The stamp is removed before the
   hook asks, so an agent that ignores the request is not asked twice and the
   session always ends.
 - **Nothing to say, nothing said.** An entry already dated today, or a session
   that changed no file, and the hook exits silently.
+
+One limit worth knowing: it keys on the working directory, not on the path of
+the file edited. A session anchored in one project that reaches across into a
+sibling logs the entry in the first.
 
 Turn it off alone with `jq 'del(.hooks.Stop)'`, and the stamp with
 `jq 'del(.hooks.PostToolUse)'`.
@@ -365,11 +381,11 @@ FuelingCodeAgent/
 ├── scripts/
 │   └── install-node22.sh         # Node 22 install, against a checksum pinned in the script
 ├── hooks/
-│   ├── graphify-lib.sh           # shared gate: code repo, graphify workspace
+│   ├── graphify-lib.sh           # shared gates: code repo, project dir, graphify workspace
 │   ├── graphify-session.sh       # SessionStart: names the graph
 │   ├── graphify-reminder.sh      # UserPromptSubmit: names it again when asked
 │   ├── journal-stamp.sh          # PostToolUse: marks that this session edited a file
-│   └── journal-stop.sh           # Stop: gets CLAUDE.md written and its work log appended
+│   └── journal-stop.sh           # Stop: gets the project CLAUDE.md written and its log appended
 ├── commands/
 │   └── security-audit.md         # /security-audit, a shim for the namespaced plugin command
 ├── patches/graphify/

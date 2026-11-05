@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Stop hook: every code repository keeps a CLAUDE.md, and its work log stays
-# current without anyone remembering to update it.
+# Stop hook: every project keeps a CLAUDE.md, and its work log stays current
+# without anyone remembering to update it.
 #
 # Why a hook and not a rule in CLAUDE.md: a rule is advice the model may drop
 # once the context fills, and the end of a session is exactly when it is
 # fullest. A Stop hook is code -- it runs after the model believes it has
 # finished, and blocking it hands the turn back with one instruction.
 #
-# It fires at most ONCE per session per repository: the stamp is removed before
+# It fires at most ONCE per session per project: the stamp is removed before
 # the block is emitted, so if the model writes nothing the next Stop passes
 # straight through and the session cannot loop.
 set -uo pipefail
@@ -17,14 +17,13 @@ INPUT="$(cat)"
 # Already inside a Stop-hook continuation: let it end.
 printf '%s' "$INPUT" | grep -q '"stop_hook_active"[[:space:]]*:[[:space:]]*true' && exit 0
 
-ROOT="$(gf_code_repo)" || exit 0
-GITDIR="$(git -C "$ROOT" rev-parse --absolute-git-dir 2>/dev/null)" || exit 0
+PROJ="$(gf_project_dir)" || exit 0
 SID="$(printf '%s' "$INPUT" | gf_session_id)"
 [ -n "$SID" ] || SID="nosession"
-STAMP="$GITDIR/fuelingcodeagent/edited-$SID"
+STAMP="$(gf_stamp_file "$PROJ" "$SID")" || exit 0
 [ -f "$STAMP" ] || exit 0          # nothing was changed in this session
 
-CM="$ROOT/CLAUDE.md"
+CM="$PROJ/CLAUDE.md"
 TODAY="$(date +%F)"
 
 if [ -f "$CM" ]; then
@@ -33,7 +32,7 @@ if [ -f "$CM" ]; then
     grep -q "^- $TODAY" "$CM" && exit 0
     REASON="Before you finish: append this session to the work log in $CM. Add one line under the '## Work log' heading, creating that heading at the end of the file if it is not there yet: '- $TODAY: <what changed, one sentence>'. Newest entries go last. If what you did changes how the project is built, run or tested, update that part of the file too. Change nothing else, and do not restate the log in your reply."
 else
-    REASON="Before you finish: this repository has no CLAUDE.md. Write $CM as a short orientation for whoever opens the next session -- what the project is, how to run and test it, the conventions a newcomer would get wrong -- and end it with a '## Work log' heading whose first line is '- $TODAY: <what changed in this session, one sentence>'. Describe what the repository is now, not its history. Keep the whole file under 80 lines, state only what you have verified in the code, and do not restate it in your reply."
+    REASON="Before you finish: this project has no CLAUDE.md. Write $CM as a short orientation for whoever opens the next session -- what the project is, how to run and test it, the conventions a newcomer would get wrong -- and end it with a '## Work log' heading whose first line is '- $TODAY: <what changed in this session, one sentence>'. Describe what the project is now, not its history. Keep the whole file under 80 lines, state only what you have verified in the code, and do not restate it in your reply."
 fi
 
 # Fire once: remove the stamp first, so a model that ignores this is not asked

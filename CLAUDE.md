@@ -55,7 +55,11 @@ payload to them, as the comments in `hooks/` describe.
 
 - 2026-11-05: added the CLAUDE.md work-log hooks -- `journal-stamp.sh` records
   that a session edited a file, `journal-stop.sh` blocks the end of the turn
-  once to get the entry written, and every code repository now gets a
-  CLAUDE.md on its first session. Extracted the shared "is this software work"
-  gate into `gf_code_repo`, and replaced step 7's inline jq merge with an
-  idempotent `add_hook`.
+  once to get the entry written, and every project now gets a CLAUDE.md on its
+  first session. Extracted the shared "is this software work" gate into
+  `gf_code_repo`, and replaced step 7's inline jq merge with an idempotent
+  `add_hook`.
+- 2026-11-05: the journal hooks target the **project** directory, not the git
+  root -- `gf_project_dir` walks up to the first directory with a CLAUDE.md or
+  a project marker. Found by checking a real monorepo: every project under
+  `Rezaworks/` would have shared one file at the top.
