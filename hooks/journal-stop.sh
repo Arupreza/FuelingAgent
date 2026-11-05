@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# Stop hook: every project keeps a CLAUDE.md, and its work log stays current
-# without anyone remembering to update it.
+# Stop hook: every project keeps a CLAUDE.md, and it stays current without
+# anyone remembering to update it.
+#
+# The file carries two kinds of thing, and the second is the point. A work log
+# says what changed and when. Direction says how this project does things --
+# the command, the inputs, where output goes, the format that was chosen. Ask
+# for the same artefact two weeks later and direction is what makes it come
+# out the same; a log entry only proves it once happened.
 #
 # Why a hook and not a rule in CLAUDE.md: a rule is advice the model may drop
 # once the context fills, and the end of a session is exactly when it is
@@ -30,9 +36,9 @@ if [ -f "$CM" ]; then
     # Logged under today's date already: leave the stamp, so a later edit in
     # this same session is still covered, and say nothing.
     grep -q "^- $TODAY" "$CM" && exit 0
-    REASON="Before you finish: append this session to the work log in $CM. Add one line under the '## Work log' heading, creating that heading at the end of the file if it is not there yet: '- $TODAY: <what changed, one sentence>'. Newest entries go last. If what you did changes how the project is built, run or tested, update that part of the file too. Change nothing else, and do not restate the log in your reply."
+    REASON="Before you finish: update $CM so the next session can repeat this work without being briefed again. Two parts. (1) Work log: one line under the '## Work log' heading, creating that heading at the end of the file if it is not there yet -- '- $TODAY: <what changed, one sentence>', newest last. (2) Direction, and this is the part that matters: if this session settled how something is done in this project -- a command and its arguments, a script and its inputs, where output belongs, a format or layout that was chosen, a trap that cost time -- write it under a '## How things are done here' heading as an instruction for next time, not as a story. Edit the existing entry instead of adding a near-duplicate, and skip this part if nothing durable came up. Change nothing else in the file, and do not restate it in your reply."
 else
-    REASON="Before you finish: this project has no CLAUDE.md. Write $CM as a short orientation for whoever opens the next session -- what the project is, how to run and test it, the conventions a newcomer would get wrong -- and end it with a '## Work log' heading whose first line is '- $TODAY: <what changed in this session, one sentence>'. Describe what the project is now, not its history. Keep the whole file under 80 lines, state only what you have verified in the code, and do not restate it in your reply."
+    REASON="Before you finish: this project has no CLAUDE.md. Write $CM so the next session needs no briefing -- what the project is, how to run and test it, and the conventions a newcomer would get wrong. Give it a '## How things are done here' heading holding this project's repeatable tasks as instructions: for each one the command or tool, its inputs, where the output goes, and the format or layout that was chosen, so asking for the same artefact in two weeks produces the same thing. End with a '## Work log' heading whose first line is '- $TODAY: <what changed in this session, one sentence>'. Describe the project as it is now, not its history. Keep the file under 80 lines, state only what you have verified in the code, and do not restate it in your reply."
 fi
 
 # Fire once: remove the stamp first, so a model that ignores this is not asked

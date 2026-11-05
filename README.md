@@ -161,7 +161,7 @@ four cover the two things that kept not happening.
 | `graphify-session.sh` | `SessionStart` | names the graph and the CLI, every new session |
 | `graphify-reminder.sh` | `UserPromptSubmit` | repeats the pointer when a caller, impact or dependency question is actually asked, since in a long session the SessionStart line drifts far up the context |
 | `journal-stamp.sh` | `PostToolUse` (`Write`, `Edit`) | records that this session changed a file in this project |
-| `journal-stop.sh` | `Stop` | if it did, holds the turn open once to get `CLAUDE.md` written or its work log appended |
+| `journal-stop.sh` | `Stop` | if it did, holds the turn open once to get `CLAUDE.md` written or brought up to date |
 
 `graphify-lib.sh` holds the gate all four share. Plain shell: no model call, no
 network, nothing when silent.
@@ -195,10 +195,23 @@ months-old graph. Delete any you find.
 
 ### The CLAUDE.md work log
 
-Every project you write code in gets a `CLAUDE.md`: what the project is, how
-to run and test it, the conventions a newcomer would get wrong, and a
-`## Work log` section. The next session reads it before anything else, because
-Claude Code loads `CLAUDE.md` from the working directory upwards on its own.
+Every project you write code in gets a `CLAUDE.md`. The next session reads it
+before anything else, because Claude Code loads `CLAUDE.md` from the working
+directory upwards on its own — there is nothing to invoke.
+
+The file carries two kinds of thing, and the second is the point:
+
+| Section | Holds | Answers |
+|---------|-------|---------|
+| `## How things are done here` | the repeatable tasks of this project as instructions — the command and its arguments, the inputs, where output goes, the format that was chosen, the trap that cost time | "make that thing again" |
+| `## Work log` | one dated line per session | "when did this change" |
+
+A log alone is not enough. `- 2026-11-05: built the report page` proves it
+happened once; it does not say which tool, which inputs or which layout, so
+the same request a fortnight later comes out differently. Direction is what
+makes it come out the same, which is why the hook asks for both and treats the
+second as optional — a session that settled nothing durable adds no
+instruction.
 
 **Project, not git root.** A monorepo holds several projects in one repository,
 and one file at the top would describe none of them — `Rezaworks/` is a single

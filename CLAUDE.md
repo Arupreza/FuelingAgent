@@ -59,6 +59,10 @@ payload to them, as the comments in `hooks/` describe.
   first session. Extracted the shared "is this software work" gate into
   `gf_code_repo`, and replaced step 7's inline jq merge with an idempotent
   `add_hook`.
+- 2026-11-05: the journal hooks now ask for direction, not only history -- a
+  '## How things are done here' section holding each repeatable task as an
+  instruction, because a dated log line does not say which command, inputs or
+  format produced the thing.
 - 2026-11-05: the journal hooks target the **project** directory, not the git
   root -- `gf_project_dir` walks up to the first directory with a CLAUDE.md or
   a project marker. Found by checking a real monorepo: every project under
