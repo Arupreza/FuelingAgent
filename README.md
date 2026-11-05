@@ -48,6 +48,7 @@ or repair an install; it never duplicates one.
 | graphify | CLI + skill | [`ChihebBENCHEIKH1/graphify`](https://github.com/ChihebBENCHEIKH1/graphify) + patch in this repo | Answers "who calls this" and "what breaks" from a dependency graph; patched to extract Python | ✓ | ✓ |
 | archify | skill | [`tt-a1i/archify`](https://github.com/tt-a1i/archify) | Interactive HTML diagrams and one-page explainers | ✓ | ✓ |
 | asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ |
+| pg-aiguide | 3 of its 11 skills | [`timescale/pg-aiguide`](https://github.com/timescale/pg-aiguide) | Postgres and pgvector practice: table design, HNSW and halfvec tuning, BM25 + vector hybrid search with RRF. See [note](#pg-aiguide) | ✓ | ✓ |
 | claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — |
 | phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | — |
 | security review | command + GitHub Action | [`anthropics/claude-code-security-review`](https://github.com/anthropics/claude-code-security-review) | AI security review of changes and pull requests | ✓ | see [below](#security-review) |
@@ -172,6 +173,27 @@ Only one of Phoenix's six plugins is installed. The rest are in `/plugin menu`:
 `phoenix-sast-rules` needs semgrep on `PATH`, `phoenix-prd-pipeline` overlaps
 superpowers' planning skills, and the other two are threat-intelligence and
 browser-automation tools rather than coding aids.
+
+## pg-aiguide
+
+Three skills of the eleven: `pgvector-semantic-search`,
+`postgres-hybrid-text-search` and `design-postgres-tables`. ~600 tokens of
+description between them, bodies loaded only when used.
+
+Two routes were rejected, both of which the project's own README suggests:
+
+- **`--skill postgres`**, its router skill. Installed on its own it arrives
+  without the `references/` directory it points at, so all nine of its links
+  resolve to nothing. Verified by installing it: nine dead links, zero
+  reference files. Usable only through the plugin, which bundles them.
+- **the Claude Code plugin** (`claude plugin marketplace add timescale/pg-aiguide`).
+  It wires no hooks, so it costs nothing per turn, but it registers a remote
+  MCP server at `mcp.tigerdata.com` and installs all eleven skills, four of
+  them TimescaleDB and one PostGIS. Take this route if you want the
+  version-aware Postgres manual search; skip it if an external service in the
+  loop is the wrong trade.
+
+The three skills are self-contained: no `references/`, nothing to fetch.
 
 ## Session hooks
 

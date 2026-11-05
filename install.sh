@@ -82,10 +82,23 @@ CLAUDE_ONLY_PLUGINS=(
 # node >=22.20.0, which is why scripts/install-node22.sh pins 22.23.4 -- pinning
 # one side and not the other is how that mismatch went unnoticed.
 SKILLS_PKG="skills@1.7.6"
+# An entry is a repo, optionally followed by flags for the skills CLI.
 SKILLS=(
     "tt-a1i/archify"
     "ChihebBENCHEIKH1/graphify"
     "danyuchn/asd-ste100-skill"
+    # pg-aiguide ships 11 skills; these are the three that apply to Postgres
+    # and pgvector work. The rest are TimescaleDB and PostGIS, and every
+    # description loads at session start whether it is used or not.
+    #
+    # NOT the `postgres` router skill the project README recommends: installed
+    # on its own it arrives without the references/ directory it points at, so
+    # all nine of its links are dead. These three are self-contained.
+    #
+    # NOT the Claude Code plugin either -- it registers a remote MCP server at
+    # mcp.tigerdata.com, and the plan this supports treats a third-party API as
+    # the wrong default for corpus work.
+    "timescale/pg-aiguide --skill pgvector-semantic-search --skill postgres-hybrid-text-search --skill design-postgres-tables"
 )
 
 section "1/7  Node.js (needed by the skills installer)"
@@ -207,19 +220,25 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     echo "    recorded in $LOCK"
 fi
 
-section "3/7  Skills (archify, graphify, asd-ste100)"
+section "3/7  Skills (archify, graphify, asd-ste100, pg-aiguide)"
 if [ "$SKIP_SKILLS" -eq 1 ]; then
     echo "--> skipped: no Node >= $NODE_MIN (see the summary at the end)"
 fi
-for repo in "${SKILLS[@]}"; do
+for entry in "${SKILLS[@]}"; do
     [ "$SKIP_SKILLS" -eq 1 ] && break
+    # Split the entry so a repo can carry flags such as --skill. Word
+    # splitting is wanted here and nowhere else, which is why it goes through
+    # an array rather than an unquoted expansion.
+    read -r -a SKILL_ARGS <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
-        echo "--> [Claude Code] $repo"
-        try "claude skill $repo" run_npx -y "$SKILLS_PKG" add "$repo" -g -a claude-code -y
+        echo "--> [Claude Code] ${SKILL_ARGS[0]}"
+        try "claude skill ${SKILL_ARGS[0]}" \
+            run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a claude-code -y
     fi
     if [ "$WANT_CODEX" -eq 1 ]; then
-        echo "--> [Codex] $repo"
-        try "codex skill $repo" run_npx -y "$SKILLS_PKG" add "$repo" -g -a codex -y
+        echo "--> [Codex] ${SKILL_ARGS[0]}"
+        try "codex skill ${SKILL_ARGS[0]}" \
+            run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a codex -y
     fi
 done
 
