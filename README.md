@@ -30,6 +30,7 @@ or repair an install; it never duplicates one.
 - [What the installer does](#what-the-installer-does)
 - [Security plugins](#security-plugins)
   - [Asking for a check](#asking-for-a-check)
+- [Context cost](#context-cost)
 - [Session hooks](#session-hooks)
 - [Supply chain](#supply-chain)
 - [graphify: Python support](#graphify-python-support)
@@ -99,13 +100,35 @@ After the install:
 
 | 7 | Session hooks | Installs four hooks to `~/.claude/hooks/` and merges them into `settings.json`: the code graph announces itself every session, and every code repository keeps a `CLAUDE.md` with a current work log. Needs `jq`; backs up to `settings.json.bak-fca-hooks` | n/a |
 
+| 8 | Context cost | Sets `effortLevel` to `medium` if it is unset or `high`, switches the two security plugins off until asked for, and installs `~/.claude/context-cost.sh`. An explicit choice of yours (`low`, `max`) is left alone; backs up to `settings.json.bak-fca-cost` | n/a |
+
 Make sure `~/.local/bin` is on your `PATH` so the `graphify` command is found.
 
 ## Security plugins
 
-**Nothing here runs by itself.** Both plugins are invoked, so until you ask for
-a check they cost nothing beyond their description in the session prompt — about
-1.5k tokens for the two together.
+**Nothing here runs by itself.** Both plugins are invoked, never automatic.
+
+**Both are installed but switched OFF by default**, because "on demand" is not
+free. A skill's description has to be in context for the model to know the
+skill exists, so the two together cost **~1,858 tokens in every request** —
+more than a well-kept `CLAUDE.md` — for tools most people run a few times a
+week. Step 8 turns them off; turning one back on is a one-line settings change.
+
+Re-enable before a release, a handover, or any change to authentication,
+input handling or a secret:
+
+```bash
+python3 - <<'EOF'
+import json, os
+p = os.path.realpath(os.path.expanduser("~/.claude/settings.json"))
+d = json.load(open(p))
+d["enabledPlugins"]["phoenix-security-review@phoenix-security"] = True
+d["enabledPlugins"]["claude-security@claude-plugins-official"] = True
+json.dump(d, open(p, "w"), indent=2)
+EOF
+```
+
+Restart the session, run the check, then set them back to `false`.
 
 | Plugin | Runs | Cost |
 |--------|------|------|
@@ -194,6 +217,69 @@ Two routes were rejected, both of which the project's own README suggests:
   loop is the wrong trade.
 
 The three skills are self-contained: no `references/`, nothing to fetch.
+
+## Context cost
+
+Everything in a session's system prompt is re-sent on **every** request, so the
+default setup is a standing charge on all future turns. Step 8 addresses the two
+levers that dominate, and ships the script that makes the rest measurable.
+
+```bash
+bash ~/.claude/context-cost.sh       # run it from the project you are working in
+```
+
+```
+Per-request context (approx tokens, 4 bytes/token):
+  project CLAUDE.md                        1892 tokens
+  user CLAUDE.md                            836 tokens
+  MEMORY.md                                 646 tokens
+  plugin skill descriptions                1054 tokens
+  plugin agent descriptions                   0 tokens
+
+Cost multipliers (these matter more than any of the above):
+  model                                  opus
+  effortLevel                            medium
+  enabled plugins                        3 of 5 enabled
+```
+
+### The method, in order
+
+1. **Check the multipliers first.** `effortLevel` applies to every turn,
+   including "is it done yet?" — it outweighs every file in the list above.
+   `medium` by default, raised per session with `/effort high` for schema
+   design, debugging and audits.
+2. **Then the biggest file.** A project `CLAUDE.md` over ~2,000 tokens is worth
+   splitting. On one real project it had reached 11,462 tokens, two thirds of
+   that added in two days of appending notes after each task.
+3. **Then what you are not using.** A disabled plugin costs nothing; an enabled
+   one costs its skill and agent descriptions on every request whether or not
+   you invoke it.
+
+### Splitting a CLAUDE.md without losing anything
+
+`templates/claude-md-lean.md` is the rule to paste at the top of a project's
+`CLAUDE.md`. The split is:
+
+| File | Holds | Loaded |
+|------|-------|--------|
+| `CLAUDE.md` | hard rules, paths, commands, one-line gotchas | every request |
+| `docs/ENGINEERING_NOTES.md` | why each rule exists, what it cost to learn | on demand |
+| `docs/WORKLOG.md` | dated history | on demand |
+
+**Nothing is deleted, only moved** — the detail is still written down, just not
+re-sent when nobody is reading it. Measured on one project: 15,817 → 4,428
+tokens per request, a 72% cut.
+
+**What stays inline whatever it costs:** rules that prevent damage. "Never run
+`git add -A` here", "never walk the data disk", "nothing connects as the
+superuser". A rule you have to look up is a rule you break before you notice it
+applies. The *explanation* moves; the rule does not.
+
+If the notes grow large, give them a project skill at
+`.claude/skills/<name>/SKILL.md`: it costs only its description per request and
+loads its body when invoked — an index in context, the detail fetched on
+demand. Point it at the notes and tell the reader to grep the headings and read
+one section rather than the file.
 
 ## Session hooks
 
@@ -437,7 +523,8 @@ FuelingCodeAgent/
 ├── install.sh                    # entry point (Claude Code and Codex)
 ├── install-graphify-patch.sh     # graphify CLI install and patch, called by install.sh
 ├── scripts/
-│   └── install-node22.sh         # Node 22 install, against a checksum pinned in the script
+│   ├── install-node22.sh         # Node 22 install, against a checksum pinned in the script
+│   └── context-cost.sh           # what a session re-sends every request; installed by step 8
 ├── hooks/
 │   ├── graphify-lib.sh           # shared gates: code repo, project dir, graphify workspace
 │   ├── graphify-session.sh       # SessionStart: names the graph
@@ -451,6 +538,7 @@ FuelingCodeAgent/
 │   ├── extract.py.diff           # Python declaration and relationship extraction
 │   └── workspace.py.diff         # deterministic file-walk order
 └── templates/
+    ├── claude-md-lean.md         # the rule that keeps a project CLAUDE.md from growing back
     ├── claude-md-security.md     # appended to ~/.claude/CLAUDE.md by step 6
     └── github-actions/
         └── security-review.yml   # optional per-repository PR security review

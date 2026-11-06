@@ -67,8 +67,14 @@ PLUGINS=(
 )
 # Claude Code only: claude-security is an Anthropic plugin and Phoenix's is
 # built on Claude Code skills, and neither has a Codex equivalent.
-# Both of these are ON DEMAND: they cost nothing until a command asks for a
-# check. security-guidance is deliberately not here -- see step 5.
+#
+# Both are on demand, but "on demand" is NOT free, and this comment used to
+# claim it was. Measured 6 Nov 2026: their skill and agent descriptions are
+# ~1,858 tokens in EVERY request -- more than a well-kept CLAUDE.md -- because
+# a description has to be in context for the model to know the skill exists.
+# So step 8 installs them and switches them OFF. Turning one back on is a
+# one-line settings change, printed there and in the README.
+# security-guidance is deliberately not here -- see step 5.
 CLAUDE_ONLY_PLUGINS=(
     "anthropics/claude-plugins-official|claude-security|claude-plugins-official"
     # Only phoenix-security-review of Phoenix's six plugins. Its hooks are
@@ -101,7 +107,7 @@ SKILLS=(
     "timescale/pg-aiguide --skill pgvector-semantic-search --skill postgres-hybrid-text-search --skill design-postgres-tables"
 )
 
-section "1/7  Node.js (needed by the skills installer)"
+section "1/8  Node.js (needed by the skills installer)"
 # The test used to be `major >= 22` with stderr discarded, which failed open
 # three ways. It passed Node 22.14, which cannot run the pinned skills@1.7.6
 # (engines: >=22.20.0), so the real cause surfaced later as an unexplained
@@ -158,7 +164,7 @@ run_npx() {
     fi
 }
 
-section "2/7  Plugins (superpowers, ponytail, karpathy, security)"
+section "2/8  Plugins (superpowers, ponytail, karpathy, security)"
 for entry in "${PLUGINS[@]}"; do
     IFS='|' read -r repo name marketplace <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
@@ -220,7 +226,7 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     echo "    recorded in $LOCK"
 fi
 
-section "3/7  Skills (archify, graphify, asd-ste100, pg-aiguide)"
+section "3/8  Skills (archify, graphify, asd-ste100, pg-aiguide)"
 if [ "$SKIP_SKILLS" -eq 1 ]; then
     echo "--> skipped: no Node >= $NODE_MIN (see the summary at the end)"
 fi
@@ -242,14 +248,14 @@ for entry in "${SKILLS[@]}"; do
     fi
 done
 
-section "4/7  graphify CLI (patched for Python extraction)"
+section "4/8  graphify CLI (patched for Python extraction)"
 # Recorded rather than fatal: an abort here would skip steps 5-7 AND the
 # summary, leaving a partial install with nothing saying so. The graphify hooks
 # in step 7 check `command -v graphify` and stay silent without it, so a
 # failure here degrades rather than breaks.
 try "graphify CLI (install-graphify-patch.sh)" bash "$HERE/install-graphify-patch.sh"
 
-section "5/7  Remove caveman and security-guidance (not part of this toolkit)"
+section "5/8  Remove caveman and security-guidance (not part of this toolkit)"
 # Both were dropped for the same reason: model calls on every turn.
 #
 # caveman's hooks ran on every agent event.
@@ -323,7 +329,7 @@ fi
 pkill -f caveman-proxy 2>/dev/null || true
 echo "--> done"
 
-section "6/7  Auto-calling, and the /security-audit shim"
+section "6/8  Auto-calling, and the /security-audit shim"
 # Both security plugins are invoked rather than automatic, so the agent has to
 # know which one answers which question -- that is what this block puts in
 # CLAUDE.md. Guarded by a marker so re-running the installer does not append a
@@ -351,7 +357,7 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     echo "--> installed /security-audit (shim for phoenix-security-review)"
 fi
 
-section "7/7  session hooks (graphify + CLAUDE.md work log)"
+section "7/8  session hooks (graphify + CLAUDE.md work log)"
 # A skill is advice the model may or may not act on; a hook is code that runs.
 #
 # graphify was installed as a skill, so a structural question often got
@@ -418,6 +424,63 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
         add_hook PostToolUse      "Write|Edit"  journal-stamp.sh
         add_hook Stop             ""            journal-stop.sh
         echo "--> settings: $SETTINGS_REAL (backup: $SETTINGS_REAL.bak-fca-hooks)"
+    fi
+fi
+
+section "8/8  Context cost (effort, security plugins off until asked for)"
+# Everything in a session's system prompt is re-sent on every request, so the
+# default setup is a standing cost. Two levers dominate, and both are measured
+# rather than guessed -- scripts/context-cost.sh prints the breakdown.
+#
+#   effortLevel   applies to EVERY turn, including "is it done yet?". high is
+#                 right for schema design and debugging, not for status checks.
+#   the two security plugins   ~1,858 tokens/request for tools used a few
+#                 times a week.
+#
+# Nothing here removes a capability: the plugins stay installed, the model
+# stays whatever the user chose, and both changes are one line to undo.
+if [ "$WANT_CLAUDE" -eq 1 ]; then
+    SETTINGS_REAL="$(readlink -f "$HOME/.claude/settings.json" 2>/dev/null || echo "$HOME/.claude/settings.json")"
+    install -m 755 "$HERE/scripts/context-cost.sh" "$HOME/.claude/context-cost.sh"
+    echo "--> installed ~/.claude/context-cost.sh  (run it from a project to see what a request carries)"
+
+    if [ -f "$SETTINGS_REAL" ] && command -v python3 >/dev/null 2>&1; then
+        [ -f "$SETTINGS_REAL.bak-fca-cost" ] || cp "$SETTINGS_REAL" "$SETTINGS_REAL.bak-fca-cost"
+        python3 - "$SETTINGS_REAL" <<'EOF'
+import json, sys
+p = sys.argv[1]
+d = json.load(open(p))
+changed = []
+# Only set a default where the user has expressed no preference. An explicit
+# choice of theirs is not ours to overwrite on every re-run.
+if "effortLevel" not in d:
+    d["effortLevel"] = "medium"; changed.append("effortLevel=medium (new)")
+elif d["effortLevel"] == "high":
+    d["effortLevel"] = "medium"; changed.append("effortLevel: high -> medium")
+ep = d.setdefault("enabledPlugins", {})
+for k in ("phoenix-security-review@phoenix-security",
+          "claude-security@claude-plugins-official"):
+    if ep.get(k) is True:
+        ep[k] = False; changed.append(f"{k.split('@')[0]} -> off until asked for")
+if changed:
+    json.dump(d, open(p, "w"), indent=2)
+    for c in changed:
+        print(f"    {c}")
+else:
+    print("    already set; nothing changed")
+EOF
+        echo "    backup: $SETTINGS_REAL.bak-fca-cost"
+        echo ""
+        echo "    Raise effort for a hard task with /effort high, per session."
+        echo "    Before a release or handover, re-enable the security plugins:"
+        echo "      python3 - <<'EOF'"
+        echo "      import json; p=\"$SETTINGS_REAL\"; d=json.load(open(p))"
+        echo "      d['enabledPlugins']['phoenix-security-review@phoenix-security']=True"
+        echo "      d['enabledPlugins']['claude-security@claude-plugins-official']=True"
+        echo "      json.dump(d, open(p,'w'), indent=2)"
+        echo "      EOF"
+    else
+        echo "--> no settings.json or no python3; set effortLevel yourself (see README)"
     fi
 fi
 
