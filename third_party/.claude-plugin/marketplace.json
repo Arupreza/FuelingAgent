@@ -1,0 +1,14 @@
+{
+  "name": "fuelingcodeagent-mirror",
+  "owner": { "name": "FuelingCodeAgent" },
+  "metadata": {
+    "description": "Pinned copies of the third-party plugins FuelingCodeAgent installs, used only when an upstream repository is unreachable. Each plugin is its authors' work under its own licence; see third_party/SOURCES.md."
+  },
+  "plugins": [
+    { "name": "superpowers",             "source": "./plugins/superpowers",             "description": "obra/superpowers (MIT)" },
+    { "name": "ponytail",                "source": "./plugins/ponytail",                "description": "DietrichGebert/ponytail (MIT)" },
+    { "name": "andrej-karpathy-skills",  "source": "./plugins/andrej-karpathy-skills",  "description": "multica-ai/andrej-karpathy-skills (MIT)" },
+    { "name": "claude-security",         "source": "./plugins/claude-security",         "description": "anthropics/claude-plugins-official (Apache-2.0)" },
+    { "name": "phoenix-security-review", "source": "./plugins/phoenix-security-review", "description": "Security-Phoenix-demo/security-skills-claude-code (MIT)" }
+  ]
+}

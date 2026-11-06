@@ -60,6 +60,26 @@ try() {   # try <label> <command...>
     "$@" || note_failure "$label"
 }
 
+# third_party/ holds a pinned, licensed copy of every third-party plugin and
+# skill below (scripts/vendor-third-party.sh, sources in third_party/SOURCES.md).
+# Upstream is always tried first; the copy is used only when upstream fails --
+# a deleted repository, a rename, an outage, no network to GitHub.
+MIRROR="$HERE/third_party"
+MIRROR_MP="fuelingcodeagent-mirror"
+claude_plugin() {   # claude_plugin <repo> <name> <marketplace>
+    local repo="$1" name="$2" mp="$3"
+    if claude plugin marketplace add "$repo" && claude plugin install "$name@$mp"; then
+        return 0
+    fi
+    if [ -d "$MIRROR/plugins/$name" ]; then
+        echo "    upstream $repo failed -- installing the pinned copy from third_party/"
+        claude plugin marketplace add "$MIRROR" >/dev/null 2>&1 || true   # already added is fine
+        try "claude plugin $name (third_party copy)" claude plugin install "$name@$MIRROR_MP"
+    else
+        note_failure "claude plugin $name"
+    fi
+}
+
 PLUGINS=(
     "obra/superpowers-marketplace|superpowers|superpowers-marketplace"
     "DietrichGebert/ponytail|ponytail|ponytail"
@@ -151,7 +171,7 @@ if [ "$NODE_OK" -eq 0 ]; then
     else
         # Fail closed: skip the steps that need it rather than run them and
         # emit a confusing npx error for each.
-        note_failure "Node >= $NODE_MIN unavailable -- skills steps skipped"
+        note_failure "Node >= $NODE_MIN unavailable -- skills installed from third_party/, not upstream"
         SKIP_SKILLS=1
     fi
 fi
@@ -169,8 +189,7 @@ for entry in "${PLUGINS[@]}"; do
     IFS='|' read -r repo name marketplace <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] $name"
-        try "claude marketplace $repo" claude plugin marketplace add "$repo"
-        try "claude plugin $name"      claude plugin install "$name@$marketplace"
+        claude_plugin "$repo" "$name" "$marketplace"
     fi
     if [ "$WANT_CODEX" -eq 1 ]; then
         echo "--> [Codex] $name"
@@ -183,8 +202,7 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     for entry in "${CLAUDE_ONLY_PLUGINS[@]}"; do
         IFS='|' read -r repo name marketplace <<< "$entry"
         echo "--> [Claude Code] $name"
-        try "claude marketplace $repo" claude plugin marketplace add "$repo"
-        try "claude plugin $name"      claude plugin install "$name@$marketplace"
+        claude_plugin "$repo" "$name" "$marketplace"
     done
 fi
 
@@ -238,15 +256,35 @@ for entry in "${SKILLS[@]}"; do
     read -r -a SKILL_ARGS <<< "$entry"
     if [ "$WANT_CLAUDE" -eq 1 ]; then
         echo "--> [Claude Code] ${SKILL_ARGS[0]}"
-        try "claude skill ${SKILL_ARGS[0]}" \
-            run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a claude-code -y
+        run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a claude-code -y \
+            || echo "    upstream ${SKILL_ARGS[0]} failed -- third_party/ copy used below"
     fi
     if [ "$WANT_CODEX" -eq 1 ]; then
         echo "--> [Codex] ${SKILL_ARGS[0]}"
-        try "codex skill ${SKILL_ARGS[0]}" \
-            run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a codex -y
+        run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a codex -y \
+            || echo "    upstream ${SKILL_ARGS[0]} failed -- third_party/ copy used below"
     fi
 done
+
+# Any third-party skill still missing -- upstream failed, or no Node -- comes
+# from the pinned copy. A skill present already is left alone, so a working
+# upstream install is never replaced by the older copy.
+backfill_skills() {   # backfill_skills <skills dir> <agent label>
+    local dir="$1" agent="$2" sk name
+    for sk in "$MIRROR/skills"/*/; do
+        [ -f "$sk/SKILL.md" ] || continue
+        name="$(basename "$sk")"
+        [ -e "$dir/$name/SKILL.md" ] && continue
+        install -d "$dir"
+        if cp -R "$sk" "$dir/$name"; then
+            echo "--> [$agent] $name (pinned copy from third_party/)"
+        else
+            note_failure "$agent skill $name"
+        fi
+    done
+}
+[ "$WANT_CLAUDE" -eq 1 ] && backfill_skills "$HOME/.claude/skills" "Claude Code"
+[ "$WANT_CODEX" -eq 1 ] && backfill_skills "$HOME/.agents/skills" "Codex"
 
 # Skills written in THIS repository, not fetched from elsewhere. They are
 # plain SKILL.md directories, so they install by copying -- no Node, no
@@ -481,7 +519,9 @@ elif d["effortLevel"] == "high":
     d["effortLevel"] = "medium"; changed.append("effortLevel: high -> medium")
 ep = d.setdefault("enabledPlugins", {})
 for k in ("phoenix-security-review@phoenix-security",
-          "claude-security@claude-plugins-official"):
+          "claude-security@claude-plugins-official",
+          "phoenix-security-review@fuelingcodeagent-mirror",
+          "claude-security@fuelingcodeagent-mirror"):
     if ep.get(k) is True:
         ep[k] = False; changed.append(f"{k.split('@')[0]} -> off until asked for")
 if changed:

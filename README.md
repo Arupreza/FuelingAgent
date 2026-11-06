@@ -35,6 +35,7 @@ or repair an install; it never duplicates one.
 - [Supply chain](#supply-chain)
 - [graphify: Python support](#graphify-python-support)
 - [Security review](#security-review)
+- [Third-party copies and credits](#third-party-copies-and-credits)
 - [Updating and removal](#updating-and-removal)
 - [Repository layout](#repository-layout)
 - [License](#license)
@@ -404,7 +405,7 @@ Worth knowing before you run the installer. What is pinned:
 | Node tarball | yes, SHA-256 in `scripts/install-node22.sh` |
 | `skills` npm package | yes, `skills@1.7.6` |
 | GitHub Action template | yes, commit SHAs |
-| the plugin and skill repos | **no** |
+| the plugin and skill repos | **no** — but a pinned copy of each is in [`third_party/`](#third-party-copies-and-credits), used if upstream fails |
 
 `claude plugin marketplace add` takes a repository's default branch and has no
 flag to pin a ref, so every run installs whatever is on those branches now, and
@@ -500,6 +501,45 @@ use locally.
 > pull requests. For public repositories, require maintainer approval for
 > workflow runs from forks.
 
+## Third-party copies and credits
+
+Everything this toolkit installs from someone else is also kept in
+[`third_party/`](third_party/), at a pinned commit, with its authors' licence
+beside it. The installer always tries the upstream repository first; the copy
+is used only when upstream fails — the repository is deleted or renamed,
+GitHub is unreachable, or (for skills) Node is missing. A skill that installed
+from upstream is never replaced by the older copy.
+
+**These tools are their authors' work, not this repository's.** Each copy keeps
+its upstream `LICENSE` (and `NOTICE`, for the Apache-2.0 ones), and this
+repository's Apache-2.0 licence does not cover them. Star, report issues to,
+and contribute to the original projects:
+
+| Tool | Author | Licence |
+|------|--------|---------|
+| [superpowers](https://github.com/obra/superpowers) | Jesse Vincent ([@obra](https://github.com/obra)) | MIT |
+| [ponytail](https://github.com/DietrichGebert/ponytail) | DietrichGebert | MIT |
+| [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | multica-ai, after Andrej Karpathy's guidance | MIT (declared upstream; licence text added here, see its `LICENSE`) |
+| [claude-security](https://github.com/anthropics/claude-plugins-official/tree/main/plugins/claude-security) | Anthropic | Apache-2.0 |
+| [phoenix-security-review](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Security Skills Contributors (Phoenix Security) | MIT |
+| [archify](https://github.com/tt-a1i/archify) | tt-a1i | Apache-2.0 |
+| [graphify](https://github.com/ChihebBENCHEIKH1/graphify) | Chiheb Ben Cheikh | MIT |
+| [asd-ste100](https://github.com/danyuchn/asd-ste100-skill) | Dustin Yuchen Teng | MIT |
+| [pg-aiguide](https://github.com/timescale/pg-aiguide) (3 skills) | Timescale | Apache-2.0 |
+| [claude-code-security-review](https://github.com/anthropics/claude-code-security-review) | Anthropic | MIT |
+
+The exact commit of every copy is in
+[`third_party/SOURCES.md`](third_party/SOURCES.md). To refresh them all to
+upstream, then review what changed before committing it:
+
+```bash
+bash scripts/vendor-third-party.sh
+git diff --stat third_party/
+```
+
+If you are an author of one of these and want your copy removed or changed,
+open an issue and it will be.
+
 ## Updating and removal
 
 **Update:** run `git pull`, then `./install.sh` again.
@@ -525,7 +565,8 @@ FuelingCodeAgent/
 ├── install-graphify-patch.sh     # graphify CLI install and patch, called by install.sh
 ├── scripts/
 │   ├── install-node22.sh         # Node 22 install, against a checksum pinned in the script
-│   └── context-cost.sh           # what a session re-sends every request; installed by step 8
+│   ├── context-cost.sh           # what a session re-sends every request; installed by step 8
+│   └── vendor-third-party.sh     # rebuilds third_party/ from upstream, records each commit
 ├── hooks/
 │   ├── graphify-lib.sh           # shared gates: code repo, project dir, graphify workspace
 │   ├── graphify-session.sh       # SessionStart: names the graph
@@ -540,6 +581,12 @@ FuelingCodeAgent/
 │   ├── graphify_cli-0.1.0-py3-none-any.whl   # pinned base for the patches
 │   ├── extract.py.diff           # Python declaration and relationship extraction
 │   └── workspace.py.diff         # deterministic file-walk order
+├── third_party/                  # pinned, licensed copies of every third-party tool -- fallback only
+│   ├── SOURCES.md                # upstream, commit and licence of each copy
+│   ├── .claude-plugin/marketplace.json   # local marketplace `fuelingcodeagent-mirror`
+│   ├── plugins/                  # superpowers, ponytail, karpathy, claude-security, phoenix-security-review
+│   ├── skills/                   # archify, graphify, asd-ste100, three pg-aiguide skills
+│   └── actions/                  # claude-code-security-review
 └── templates/
     ├── claude-md-lean.md         # the rule that keeps a project CLAUDE.md from growing back
     ├── claude-md-security.md     # appended to ~/.claude/CLAUDE.md by step 6
@@ -549,5 +596,6 @@ FuelingCodeAgent/
 
 ## License
 
-[Apache License 2.0](LICENSE). Each installed tool keeps its own license; see
-its source repository.
+[Apache License 2.0](LICENSE), for this repository's own files. Everything under
+`third_party/` keeps its authors' licence — see
+[Third-party copies and credits](#third-party-copies-and-credits).
