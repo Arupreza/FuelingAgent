@@ -41,9 +41,8 @@ gf_code_repo() {
 # gf_project_dir -- print the directory that owns the CLAUDE.md for this work.
 #
 # NOT the git root. A monorepo holds several projects in one repository, and
-# each wants its own CLAUDE.md: Rezaworks/ is a single git repository whose
-# sub-directories (DeNovo-Design-AI, Function-Engine-AI, ...) are the actual
-# projects, and one CLAUDE.md at the top would describe none of them.
+# each wants its own CLAUDE.md: in a repository whose sub-directories are the
+# actual projects, one CLAUDE.md at the top would describe none of them.
 #
 # So walk up from the current directory to the git root and take the first
 # directory that already has a CLAUDE.md, or failing that looks like a project

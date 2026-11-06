@@ -71,5 +71,5 @@ payload to them, as the comments in `hooks/` describe.
   format produced the thing.
 - 2026-11-05: the journal hooks target the **project** directory, not the git
   root -- `gf_project_dir` walks up to the first directory with a CLAUDE.md or
-  a project marker. Found by checking a real monorepo: every project under
-  `Rezaworks/` would have shared one file at the top.
+  a project marker. Found by checking a real monorepo: every project in it
+  would otherwise have shared one file at the repository root.

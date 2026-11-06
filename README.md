@@ -49,6 +49,7 @@ or repair an install; it never duplicates one.
 | graphify | CLI + skill | [`ChihebBENCHEIKH1/graphify`](https://github.com/ChihebBENCHEIKH1/graphify) + patch in this repo | Answers "who calls this" and "what breaks" from a dependency graph; patched to extract Python | ✓ | ✓ |
 | archify | skill | [`tt-a1i/archify`](https://github.com/tt-a1i/archify) | Interactive HTML diagrams and one-page explainers | ✓ | ✓ |
 | asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ |
+| devops-handover | first-party skill | this repository | Audit a codebase the way the team who must deploy it will, before handing it over. Evidence-based: PASS/FAIL/N/A with a command and its output, then GO / CONDITIONAL GO / BLOCK | ✓ | ✓ |
 | pg-aiguide | 3 of its 11 skills | [`timescale/pg-aiguide`](https://github.com/timescale/pg-aiguide) | Postgres and pgvector practice: table design, HNSW and halfvec tuning, BM25 + vector hybrid search with RRF. See [note](#pg-aiguide) | ✓ | ✓ |
 | claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — |
 | phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | — |
@@ -92,7 +93,7 @@ After the install:
 |------|--------|-------------|-------|
 | 1 | Node.js 22 | Uses system Node if it is 22+; otherwise installs to `~/.local/node22` (checksum-verified) | same |
 | 2 | Plugins | `claude plugin marketplace add` + `claude plugin install` | `codex plugin marketplace add` + `codex plugin add` |
-| 3 | Skills | `npx skills add <repo> -g -a claude-code` → `~/.claude/skills` | `npx skills add <repo> -g -a codex` → `~/.agents/skills` |
+| 3 | Skills | `npx skills add <repo> -g -a claude-code` → `~/.claude/skills`, plus this repository's own `skills/*/SKILL.md` copied in directly (no Node needed for those) | `npx skills add <repo> -g -a codex` → `~/.agents/skills` |
 | 4 | graphify CLI | Installs the pinned `graphify-cli==0.1.0` wheel into `~/.venvs/graphify`, applies the Python patches, links `~/.local/bin/graphify` | shared |
 | 5 | Cleanup | Removes caveman, which earlier versions of this toolkit installed. Backs up `~/.claude/settings.json` to `settings.json.bak-caveman` before it edits the file | same |
 
@@ -345,8 +346,8 @@ second as optional — a session that settled nothing durable adds no
 instruction.
 
 **Project, not git root.** A monorepo holds several projects in one repository,
-and one file at the top would describe none of them — `Rezaworks/` is a single
-repository whose sub-directories are the real projects. So the hooks walk up
+and one file at the top would describe none of them — the real projects are
+the sub-directories, not the repository root. So the hooks walk up
 from the working directory to the git root and take the first directory that
 already has a `CLAUDE.md`, or else looks like a project root (`pyproject.toml`,
 `package.json`, `Cargo.toml`, `go.mod`, `setup.py`, `pom.xml`, `build.gradle`,
@@ -531,6 +532,8 @@ FuelingCodeAgent/
 │   ├── graphify-reminder.sh      # UserPromptSubmit: names it again when asked
 │   ├── journal-stamp.sh          # PostToolUse: marks that this session edited a file
 │   └── journal-stop.sh           # Stop: gets the project CLAUDE.md written and its log appended
+├── skills/
+│   └── devops-handover/SKILL.md  # pre-handover audit, written here rather than fetched
 ├── commands/
 │   └── security-audit.md         # /security-audit, a shim for the namespaced plugin command
 ├── patches/graphify/

@@ -226,7 +226,7 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
     echo "    recorded in $LOCK"
 fi
 
-section "3/8  Skills (archify, graphify, asd-ste100, pg-aiguide)"
+section "3/8  Skills (archify, graphify, asd-ste100, pg-aiguide, devops-handover)"
 if [ "$SKIP_SKILLS" -eq 1 ]; then
     echo "--> skipped: no Node >= $NODE_MIN (see the summary at the end)"
 fi
@@ -247,6 +247,28 @@ for entry in "${SKILLS[@]}"; do
             run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a codex -y
     fi
 done
+
+# Skills written in THIS repository, not fetched from elsewhere. They are
+# plain SKILL.md directories, so they install by copying -- no Node, no
+# registry, nothing to pin.
+if [ "$WANT_CLAUDE" -eq 1 ] && [ -d "$HERE/skills" ]; then
+    for sk in "$HERE/skills"/*/; do
+        [ -f "$sk/SKILL.md" ] || continue
+        name="$(basename "$sk")"
+        install -d "$HOME/.claude/skills/$name"
+        install -m 644 "$sk/SKILL.md" "$HOME/.claude/skills/$name/SKILL.md"
+        echo "--> [Claude Code] $name (from this repository)"
+    done
+fi
+if [ "$WANT_CODEX" -eq 1 ] && [ -d "$HERE/skills" ]; then
+    for sk in "$HERE/skills"/*/; do
+        [ -f "$sk/SKILL.md" ] || continue
+        name="$(basename "$sk")"
+        install -d "$HOME/.agents/skills/$name"
+        install -m 644 "$sk/SKILL.md" "$HOME/.agents/skills/$name/SKILL.md"
+        echo "--> [Codex] $name (from this repository)"
+    done
+fi
 
 section "4/8  graphify CLI (patched for Python extraction)"
 # Recorded rather than fatal: an abort here would skip steps 5-7 AND the
