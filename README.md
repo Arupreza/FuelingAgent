@@ -52,8 +52,8 @@ or repair an install; it never duplicates one.
 | asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ |
 | devops-handover | first-party skill | this repository | Audit a codebase the way the team who must deploy it will, before handing it over. Evidence-based: PASS/FAIL/N/A with a command and its output, then GO / CONDITIONAL GO / BLOCK | ✓ | ✓ |
 | pg-aiguide | 3 of its 11 skills | [`timescale/pg-aiguide`](https://github.com/timescale/pg-aiguide) | Postgres and pgvector practice: table design, HNSW and halfvec tuning, BM25 + vector hybrid search with RRF. See [note](#pg-aiguide) | ✓ | ✓ |
-| claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — |
-| phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | — |
+| claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — not portable, see [Codex](#on-codex) |
+| phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | ✓ skills only, see [Codex](#on-codex) |
 | security review | command + GitHub Action | [`anthropics/claude-code-security-review`](https://github.com/anthropics/claude-code-security-review) | AI security review of changes and pull requests | ✓ | see [below](#security-review) |
 
 ## Requirements
@@ -94,7 +94,7 @@ After the install:
 |------|--------|-------------|-------|
 | 1 | Node.js 22 | Uses system Node if it is 22+; otherwise installs to `~/.local/node22` (checksum-verified) | same |
 | 2 | Plugins | `claude plugin marketplace add` + `claude plugin install` | `codex plugin marketplace add` + `codex plugin add` |
-| 3 | Skills | `npx skills add <repo> -g -a claude-code` → `~/.claude/skills`, plus this repository's own `skills/*/SKILL.md` copied in directly (no Node needed for those) | `npx skills add <repo> -g -a codex` → `~/.agents/skills` |
+| 3 | Skills | `npx skills add <repo> -g -a claude-code` → `~/.claude/skills`, plus this repository's own `skills/*/SKILL.md` copied in directly (no Node needed for those) | `npx skills add <repo> -g -a codex` → `~/.agents/skills`, plus phoenix-security-review's six skills from `third_party/` ([why](#on-codex)) |
 | 4 | graphify CLI | Installs the pinned `graphify-cli==0.1.0` wheel into `~/.venvs/graphify`, applies the Python patches, links `~/.local/bin/graphify` | shared |
 | 5 | Cleanup | Removes caveman, which earlier versions of this toolkit installed. Backs up `~/.claude/settings.json` to `settings.json.bak-caveman` before it edits the file | same |
 
@@ -136,6 +136,33 @@ Restart the session, run the check, then set them back to `false`.
 |--------|------|------|
 | claude-security | when invoked | one deep multi-agent scan |
 | phoenix-security-review | when invoked | one pass |
+
+### On Codex
+
+Neither project ships a Codex plugin. What carries over:
+
+- **phoenix-security-review — its six skills.** They are plain `SKILL.md`
+  files, so step 3 copies them from `third_party/` into `~/.agents/skills`:
+  `security-assessment`, `security-reviewer`, `0day-scanner`,
+  `threat-modeling`, `tm-security-review`, `tm-quick-security-assessment`.
+  Ask Codex for an OWASP/ASVS assessment or a threat model and it uses them.
+  Its slash commands, hooks and subagent are Claude Code only and are not
+  installed. All six go in together because they link to each other's
+  checklists.
+- **claude-security — nothing.** It runs on Claude Code's Workflow tool, its
+  own subagents and `${CLAUDE_PLUGIN_ROOT}`, none of which exist in Codex.
+  For a Codex-side check use the phoenix skills above, or the
+  [GitHub Action](#security-review) on pull requests.
+
+Codex has no per-plugin off switch, so the six descriptions cost **~970 tokens
+every Codex session**. To drop them until you need them:
+
+```bash
+cd ~/.agents/skills && rm -rf security-assessment security-reviewer 0day-scanner \
+  threat-modeling tm-security-review tm-quick-security-assessment
+```
+
+Re-running `./install.sh --codex` puts them back.
 
 That is a deliberate change. This toolkit shipped Anthropic's
 `security-guidance` for a while, which reviews code as it is written and needs

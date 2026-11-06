@@ -286,6 +286,28 @@ backfill_skills() {   # backfill_skills <skills dir> <agent label>
 [ "$WANT_CLAUDE" -eq 1 ] && backfill_skills "$HOME/.claude/skills" "Claude Code"
 [ "$WANT_CODEX" -eq 1 ] && backfill_skills "$HOME/.agents/skills" "Codex"
 
+# phoenix-security-review for Codex. Upstream ships no Codex plugin, only a
+# Claude Code one, but its six skills are plain SKILL.md files Codex reads.
+# Installed together from the pinned copy because they link to each other
+# (../security-reviewer/checklists/...); the commands, hooks and subagent are
+# Claude Code only and are not installed. claude-security has no Codex path at
+# all: it runs on Claude Code's Workflow tool and subagents.
+PHX="$MIRROR/plugins/phoenix-security-review/skills"
+if [ "$WANT_CODEX" -eq 1 ] && [ -d "$PHX" ]; then
+    for sk in "$PHX"/*/; do
+        [ -f "$sk/SKILL.md" ] || continue
+        name="$(basename "$sk")"
+        install -d "$HOME/.agents/skills"
+        # Replaced, not merged, so a re-run after a third_party/ refresh updates it.
+        rm -rf "${HOME:?}/.agents/skills/$name"
+        if cp -R "$sk" "$HOME/.agents/skills/$name"; then
+            echo "--> [Codex] $name (phoenix-security-review, pinned copy)"
+        else
+            note_failure "codex skill $name (phoenix-security-review)"
+        fi
+    done
+fi
+
 # Skills written in THIS repository, not fetched from elsewhere. They are
 # plain SKILL.md directories, so they install by copying -- no Node, no
 # registry, nothing to pin.
