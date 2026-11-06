@@ -1,7 +1,7 @@
 # FuelingCodeAgent
 
-Setup as code: one script installs this machine's Claude Code and Codex
-toolkit -- plugins, skills, security review, the graphify dependency graph, and
+Setup as code: one script installs this machine's Claude Code, Codex,
+Cursor and Antigravity toolkit (the last two as skills only) -- plugins, skills, security review, the graphify dependency graph, and
 the hooks that make them fire by themselves. Nothing here runs during normal
 coding; it only installs.
 
@@ -11,6 +11,7 @@ coding; it only installs.
 ./install.sh --claude          # Claude Code only
 ./install.sh --codex           # Codex only
 ./install.sh --claude --codex  # both
+./install.sh --cursor --antigravity   # skills into ~/.agents/skills, ~/.gemini/config/skills
 ```
 
 It is idempotent: a re-run leaves what already succeeded alone. Shell only --

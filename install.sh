@@ -1,31 +1,44 @@
 #!/usr/bin/env bash
-# FuelingCodeAgent installer for Claude Code and OpenAI Codex.
+# FuelingCodeAgent installer for Claude Code, OpenAI Codex, Cursor and Antigravity.
 # Idempotent: safe to re-run. See README.md for details.
 #
-# Usage: ./install.sh [--claude] [--codex]
-#   With no flags, installs for every agent CLI found on PATH.
+# Usage: ./install.sh [--claude] [--codex] [--cursor] [--antigravity]
+#   With no flags, installs for every agent found on this machine.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 WANT_CLAUDE=0
 WANT_CODEX=0
+WANT_CURSOR=0
+WANT_ANTIGRAVITY=0
 for arg in "$@"; do
     case "$arg" in
         --claude) WANT_CLAUDE=1 ;;
         --codex)  WANT_CODEX=1 ;;
+        --cursor) WANT_CURSOR=1 ;;
+        --antigravity) WANT_ANTIGRAVITY=1 ;;
         -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
-        *) echo "Unknown option: $arg (use --claude and/or --codex)"; exit 1 ;;
+        *) echo "Unknown option: $arg (use --claude, --codex, --cursor, --antigravity)"; exit 1 ;;
     esac
 done
-if [ "$WANT_CLAUDE" -eq 0 ] && [ "$WANT_CODEX" -eq 0 ]; then
+ANY=$((WANT_CLAUDE + WANT_CODEX + WANT_CURSOR + WANT_ANTIGRAVITY))
+if [ "$ANY" -eq 0 ]; then
     command -v claude >/dev/null 2>&1 && WANT_CLAUDE=1
     command -v codex  >/dev/null 2>&1 && WANT_CODEX=1
+    # Cursor and Antigravity are desktop apps, often with no CLI on PATH, so
+    # their config directory is the signal -- the same test the skills CLI uses.
+    { command -v cursor >/dev/null 2>&1 || command -v cursor-agent >/dev/null 2>&1 \
+      || [ -d "$HOME/.cursor" ]; } && WANT_CURSOR=1
+    { command -v agy >/dev/null 2>&1 || [ -d "$HOME/.gemini/antigravity" ] \
+      || [ -d "$HOME/.gemini/antigravity-cli" ]; } && WANT_ANTIGRAVITY=1
 fi
-if [ "$WANT_CLAUDE" -eq 0 ] && [ "$WANT_CODEX" -eq 0 ]; then
-    echo "ERROR: neither 'claude' nor 'codex' found on PATH. Install one first:"
+if [ $((WANT_CLAUDE + WANT_CODEX + WANT_CURSOR + WANT_ANTIGRAVITY)) -eq 0 ]; then
+    echo "ERROR: no supported agent found. Install one first, or name it with a flag:"
     echo "  Claude Code:  https://claude.com/claude-code"
     echo "  Codex CLI:    npm install -g @openai/codex"
+    echo "  Cursor:       https://cursor.com          (then ./install.sh --cursor)"
+    echo "  Antigravity:  https://antigravity.google  (then ./install.sh --antigravity)"
     exit 1
 fi
 for agent in claude codex; do
@@ -39,6 +52,8 @@ done
 TARGETS=()
 [ "$WANT_CLAUDE" -eq 1 ] && TARGETS+=("Claude Code")
 [ "$WANT_CODEX" -eq 1 ] && TARGETS+=("Codex")
+[ "$WANT_CURSOR" -eq 1 ] && TARGETS+=("Cursor")
+[ "$WANT_ANTIGRAVITY" -eq 1 ] && TARGETS+=("Antigravity")
 echo "FuelingCodeAgent: installing for ${TARGETS[*]}"
 
 section() {
@@ -269,9 +284,12 @@ done
 # Any third-party skill still missing -- upstream failed, or no Node -- comes
 # from the pinned copy. A skill present already is left alone, so a working
 # upstream install is never replaced by the older copy.
-backfill_skills() {   # backfill_skills <skills dir> <agent label>
-    local dir="$1" agent="$2" sk name
-    for sk in "$MIRROR/skills"/*/; do
+backfill_skills() {   # backfill_skills <skills dir> <agent label> [source dir...]
+    local dir="$1" agent="$2" root sk name
+    shift 2
+    [ "$#" -gt 0 ] || set -- "$MIRROR/skills"
+    for root in "$@"; do
+    for sk in "$root"/*/; do
         [ -f "$sk/SKILL.md" ] || continue
         name="$(basename "$sk")"
         [ -e "$dir/$name/SKILL.md" ] && continue
@@ -281,6 +299,7 @@ backfill_skills() {   # backfill_skills <skills dir> <agent label>
         else
             note_failure "$agent skill $name"
         fi
+    done
     done
 }
 [ "$WANT_CLAUDE" -eq 1 ] && backfill_skills "$HOME/.claude/skills" "Claude Code"
@@ -328,6 +347,58 @@ if [ "$WANT_CODEX" -eq 1 ] && [ -d "$HERE/skills" ]; then
         install -m 644 "$sk/SKILL.md" "$HOME/.agents/skills/$name/SKILL.md"
         echo "--> [Codex] $name (from this repository)"
     done
+fi
+
+# Cursor and Antigravity: everything as skills. Neither has a plugin system
+# an installer can drive -- Cursor's /add-plugin works only inside its chat,
+# Antigravity's `agy plugin install` needs its CLI -- but both read plain
+# SKILL.md directories, which is what every plugin here is made of. Hooks,
+# slash commands and subagents are Claude Code features and do not carry over;
+# claude-security has nothing that runs outside Claude Code.
+#
+# Where each one reads global skills, from its own docs (checked 2026-11):
+#   Cursor       ~/.agents/skills and ~/.cursor/skills (also ~/.claude/skills,
+#                ~/.codex/skills). The skills CLI installs Cursor to
+#                ~/.agents/skills, so that is used and ~/.cursor/skills is not:
+#                filling both would list every skill twice.
+#   Antigravity  ~/.gemini/config/skills, all products (App, IDE, CLI). The
+#                skills CLI installs it to ~/.agents/skills, which Antigravity's
+#                docs do not list, so it gets the pinned copies directly.
+PLUGIN_SKILL_REPOS=(obra/superpowers DietrichGebert/ponytail multica-ai/andrej-karpathy-skills)
+COPY_ROOTS=("$MIRROR/plugins/superpowers/skills" "$MIRROR/plugins/ponytail/skills"
+            "$MIRROR/plugins/andrej-karpathy-skills/skills" "$MIRROR/skills")
+OWN_ROOTS=("$MIRROR/plugins/phoenix-security-review/skills" "$HERE/skills")
+copy_skills() {   # copy_skills <dest> <label> <root...> -- replaces, so a refresh lands
+    local dest="$1" label="$2" root sk name
+    shift 2
+    for root in "$@"; do
+        for sk in "$root"/*/; do
+            [ -f "$sk/SKILL.md" ] || continue
+            name="$(basename "$sk")"
+            install -d "$dest"
+            rm -rf "${dest:?}/$name"
+            if cp -R "$sk" "$dest/$name"; then
+                echo "--> [$label] $name"
+            else
+                note_failure "$label skill $name"
+            fi
+        done
+    done
+}
+if [ "$WANT_CURSOR" -eq 1 ]; then
+    if [ "$SKIP_SKILLS" -eq 0 ]; then
+        for entry in "${PLUGIN_SKILL_REPOS[@]}" "${SKILLS[@]}"; do
+            read -r -a SKILL_ARGS <<< "$entry"
+            echo "--> [Cursor] ${SKILL_ARGS[0]}"
+            run_npx -y "$SKILLS_PKG" add "${SKILL_ARGS[@]}" -g -a cursor -y \
+                || echo "    upstream ${SKILL_ARGS[0]} failed -- third_party/ copy used below"
+        done
+    fi
+    backfill_skills "$HOME/.agents/skills" "Cursor" "${COPY_ROOTS[@]}"
+    copy_skills "$HOME/.agents/skills" "Cursor" "${OWN_ROOTS[@]}"
+fi
+if [ "$WANT_ANTIGRAVITY" -eq 1 ]; then
+    copy_skills "$HOME/.gemini/config/skills" "Antigravity" "${COPY_ROOTS[@]}" "${OWN_ROOTS[@]}"
 fi
 
 section "4/8  graphify CLI (patched for Python extraction)"
@@ -585,5 +656,11 @@ if [ "$WANT_CLAUDE" -eq 1 ]; then
 fi
 if [ "$WANT_CODEX" -eq 1 ]; then
     echo "Codex: start a new thread, open /hooks, and trust ponytail's two hooks."
+fi
+if [ "$WANT_CURSOR" -eq 1 ]; then
+    echo "Cursor: restart it. Skills are in ~/.agents/skills (Settings -> Rules shows them)."
+fi
+if [ "$WANT_ANTIGRAVITY" -eq 1 ]; then
+    echo "Antigravity: restart it. Skills are in ~/.gemini/config/skills."
 fi
 echo "Optional: per-repo PR security review -- see README.md 'Security review'."

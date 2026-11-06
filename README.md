@@ -1,12 +1,14 @@
 # FuelingCodeAgent
 
-**One installer that sets up the same agent toolkit for Claude Code and OpenAI Codex.**
+**One installer that sets up the same agent toolkit for Claude Code, OpenAI Codex, Cursor and Antigravity.**
 
 ![Bash](https://img.shields.io/badge/Bash-5.0%2B-4EAA25?logo=gnubash&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)
 ![Claude Code](https://img.shields.io/badge/Claude%20Code-supported-d97757?logo=anthropic&logoColor=white)
 ![Codex](https://img.shields.io/badge/OpenAI%20Codex-supported-412991?logo=openai&logoColor=white)
+![Cursor](https://img.shields.io/badge/Cursor-skills-000000?logo=cursor&logoColor=white)
+![Antigravity](https://img.shields.io/badge/Antigravity-skills-4285F4?logo=google&logoColor=white)
 ![License](https://img.shields.io/badge/License-Apache%202.0-D22128)
 
 One command installs an all-in-one toolkit for coding work:
@@ -19,14 +21,16 @@ One command installs an all-in-one toolkit for coding work:
 - **a CLAUDE.md per project** — written on the first session that changes
   code, and its work log appended at the end of every session after that.
 
-Works for Claude Code and OpenAI Codex. Re-run the installer any time to update
-or repair an install; it never duplicates one.
+Works for Claude Code and OpenAI Codex, and for Cursor and Antigravity as
+skills ([what carries over](#cursor-and-antigravity)). Re-run the installer any
+time to update or repair an install; it never duplicates one.
 
 ## Contents
 
 - [Toolkit](#toolkit)
 - [Requirements](#requirements)
 - [Quick start](#quick-start)
+- [Cursor and Antigravity](#cursor-and-antigravity)
 - [What the installer does](#what-the-installer-does)
 - [Security plugins](#security-plugins)
   - [Asking for a check](#asking-for-a-check)
@@ -42,19 +46,19 @@ or repair an install; it never duplicates one.
 
 ## Toolkit
 
-| Tool | Type | Source | Purpose | Claude Code | Codex |
-|------|------|--------|---------|:-----------:|:-----:|
-| superpowers | plugin | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | Structured workflow: brainstorm, plan, execute, TDD, systematic debugging, code review | ✓ | ✓ |
-| ponytail | plugin | [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail) | Smallest complete change; no speculative code | ✓ | ✓ |
-| andrej-karpathy-skills | plugin | [`multica-ai/andrej-karpathy-skills`](https://github.com/multica-ai/andrej-karpathy-skills) | State assumptions, keep it simple, make surgical edits, define success criteria | ✓ | ✓ |
-| graphify | CLI + skill | [`ChihebBENCHEIKH1/graphify`](https://github.com/ChihebBENCHEIKH1/graphify) + patch in this repo | Answers "who calls this" and "what breaks" from a dependency graph; patched to extract Python | ✓ | ✓ |
-| archify | skill | [`tt-a1i/archify`](https://github.com/tt-a1i/archify) | Interactive HTML diagrams and one-page explainers | ✓ | ✓ |
-| asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ |
-| devops-handover | first-party skill | this repository | Audit a codebase the way the team who must deploy it will, before handing it over. Evidence-based: PASS/FAIL/N/A with a command and its output, then GO / CONDITIONAL GO / BLOCK | ✓ | ✓ |
-| pg-aiguide | 3 of its 11 skills | [`timescale/pg-aiguide`](https://github.com/timescale/pg-aiguide) | Postgres and pgvector practice: table design, HNSW and halfvec tuning, BM25 + vector hybrid search with RRF. See [note](#pg-aiguide) | ✓ | ✓ |
-| claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — not portable, see [Codex](#on-codex) |
-| phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | ✓ skills only, see [Codex](#on-codex) |
-| security review | command + GitHub Action | [`anthropics/claude-code-security-review`](https://github.com/anthropics/claude-code-security-review) | AI security review of changes and pull requests | ✓ | see [below](#security-review) |
+| Tool | Type | Source | Purpose | Claude Code | Codex | Cursor | Antigravity |
+|------|------|--------|---------|:-----------:|:-----:|:------:|:-----------:|
+| superpowers | plugin | [`obra/superpowers-marketplace`](https://github.com/obra/superpowers-marketplace) | Structured workflow: brainstorm, plan, execute, TDD, systematic debugging, code review | ✓ | ✓ | ✓ | ✓ |
+| ponytail | plugin | [`DietrichGebert/ponytail`](https://github.com/DietrichGebert/ponytail) | Smallest complete change; no speculative code | ✓ | ✓ | ✓ | ✓ |
+| andrej-karpathy-skills | plugin | [`multica-ai/andrej-karpathy-skills`](https://github.com/multica-ai/andrej-karpathy-skills) | State assumptions, keep it simple, make surgical edits, define success criteria | ✓ | ✓ | ✓ | ✓ |
+| graphify | CLI + skill | [`ChihebBENCHEIKH1/graphify`](https://github.com/ChihebBENCHEIKH1/graphify) + patch in this repo | Answers "who calls this" and "what breaks" from a dependency graph; patched to extract Python | ✓ | ✓ | ✓ | ✓ |
+| archify | skill | [`tt-a1i/archify`](https://github.com/tt-a1i/archify) | Interactive HTML diagrams and one-page explainers | ✓ | ✓ | ✓ | ✓ |
+| asd-ste100 | skill | [`danyuchn/asd-ste100-skill`](https://github.com/danyuchn/asd-ste100-skill) | Documentation in Simplified Technical English | ✓ | ✓ | ✓ | ✓ |
+| devops-handover | first-party skill | this repository | Audit a codebase the way the team who must deploy it will, before handing it over. Evidence-based: PASS/FAIL/N/A with a command and its output, then GO / CONDITIONAL GO / BLOCK | ✓ | ✓ | ✓ | ✓ |
+| pg-aiguide | 3 of its 11 skills | [`timescale/pg-aiguide`](https://github.com/timescale/pg-aiguide) | Postgres and pgvector practice: table design, HNSW and halfvec tuning, BM25 + vector hybrid search with RRF. See [note](#pg-aiguide) | ✓ | ✓ | ✓ | ✓ |
+| claude-security | plugin | [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official) | Multi-agent whole-repository vulnerability scan, invoked on demand | ✓ | — not portable, see [Codex](#on-codex) | — | — |
+| phoenix-security-review | plugin | [`Security-Phoenix-demo/security-skills-claude-code`](https://github.com/Security-Phoenix-demo/security-skills-claude-code) | Whole-repo OWASP/ASVS assessment and STRIDE/DREAD threat modelling. See [note](#security-plugins) | ✓ | ✓ skills only, see [Codex](#on-codex) | ✓ | ✓ |
+| security review | command + GitHub Action | [`anthropics/claude-code-security-review`](https://github.com/anthropics/claude-code-security-review) | AI security review of changes and pull requests | ✓ | see [below](#security-review) | — | — |
 
 ## Requirements
 
@@ -74,12 +78,16 @@ cd FuelingCodeAgent
 ./install.sh
 ```
 
-With no options, the installer sets up every agent it finds on your `PATH`.
-To choose one agent:
+With no options, the installer sets up every agent it finds: `claude` and
+`codex` on your `PATH`, and Cursor and Antigravity by their config directories
+(`~/.cursor`, `~/.gemini/antigravity`) or their CLIs. To choose:
 
 ```bash
-./install.sh --claude    # Claude Code only
-./install.sh --codex     # Codex only
+./install.sh --claude        # Claude Code only
+./install.sh --codex         # Codex only
+./install.sh --cursor        # Cursor only
+./install.sh --antigravity   # Antigravity only
+./install.sh --cursor --antigravity   # any combination
 ```
 
 After the install:
@@ -87,6 +95,41 @@ After the install:
 - **Claude Code:** restart it, or start a new session.
 - **Codex:** start a new thread, open `/hooks`, and trust ponytail's two
   lifecycle hooks.
+- **Cursor / Antigravity:** restart the app.
+
+## Cursor and Antigravity
+
+Neither has a plugin system an installer can drive — Cursor's `/add-plugin`
+works only inside its chat, and Antigravity's `agy plugin install` needs its
+CLI — but both read plain `SKILL.md` directories, which is what every plugin
+here is made of. So both get **everything as skills**: superpowers' 15,
+ponytail's 6, karpathy-guidelines, archify, graphify, asd-ste100, the three
+pg-aiguide skills, phoenix-security-review's 6 and devops-handover — 35 in all.
+
+| | Cursor | Antigravity |
+|---|---|---|
+| Installed to | `~/.agents/skills` | `~/.gemini/config/skills` |
+| Source | upstream through the pinned `skills` CLI; `third_party/` for anything that fails | the pinned copies in `third_party/` |
+| Why there | Cursor reads `~/.agents/skills` and `~/.cursor/skills`; the CLI uses the first, and filling both would list every skill twice | Antigravity's docs name `~/.gemini/config/skills` for all its products (App, IDE, CLI); the CLI writes to `~/.agents/skills`, which those docs do not list |
+
+What does **not** carry over: Claude Code's hooks (ponytail's always-on mode,
+superpowers' session start, the graphify and CLAUDE.md hooks), slash commands
+and subagents. The skills still load when a task matches their description;
+superpowers' `using-superpowers` description asks the model to load it at the
+start of a conversation. **claude-security** has no skills that run outside
+Claude Code.
+
+Notes:
+
+- **Cursor also reads `~/.claude/skills` and `~/.codex/skills`.** If you
+  install for Claude Code or Codex as well, Cursor sees those copies too. That
+  is Cursor's compatibility behaviour, not something the installer adds.
+- **Antigravity users who prefer its plugin system** can install superpowers
+  with `agy plugin install https://github.com/obra/superpowers` instead; it is
+  the same skills.
+- **Per-project rules.** ponytail and karpathy ship Cursor project rules
+  (`.cursor/rules/*.mdc`); copy one from `third_party/plugins/<name>/.cursor/rules/`
+  into a repository to make it always-on there.
 
 ## What the installer does
 
